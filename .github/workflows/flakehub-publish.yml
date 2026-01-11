@@ -1,0 +1,24 @@
+name: Publish to FlakeHub
+
+on:
+  push:
+    tags:
+      - "v?[0-9]+.[0-9]+.[0-9]+*"
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  publish-flake:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write # Required for OIDC authentication
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: determinatesystems/nix-installer-action@v16
+      - uses: determinatesystems/flakehub-push@main
+        with:
+          name: deepwatrcreatur/fnox-flake
+          rolling: ${{ github.ref == 'refs/heads/main' }}
+          visibility: public
