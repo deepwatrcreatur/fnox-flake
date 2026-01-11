@@ -31,11 +31,20 @@
                 sha256 = "d593b853806212a75db74048d4cb27ac70f6811e591c1e29f496fb8af38475f3";
               };
 
+              dontUnpack = true;
+              dontConfigure = true;
+              dontBuild = true;
+
               installPhase = ''
-                mkdir -p $out/bin
-                tar -xzf $src
-                cp fnox $out/bin/
-                chmod +x $out/bin/fnox
+                runHook preInstall
+
+                tmpdir="$(mktemp -d)"
+                tar -xzf "$src" -C "$tmpdir"
+
+                mkdir -p "$out/bin"
+                install -m755 "$tmpdir/fnox" "$out/bin/fnox"
+
+                runHook postInstall
               '';
 
               meta = with pkgs.lib; {
