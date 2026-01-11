@@ -20,7 +20,7 @@
       in
       {
         packages.default =
-          if pkgs.stdenv.isLinux && pkgs.stdenv.isx86_64 then
+          if true && pkgs.stdenv.isLinux && pkgs.stdenv.isx86_64 then
             # Use pre-built binary for Linux x86_64 to avoid compilation issues
             pkgs.stdenv.mkDerivation {
               pname = "fnox";
