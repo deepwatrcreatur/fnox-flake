@@ -7,7 +7,7 @@
   };
 
   outputs =
-    {
+    inputs@{
       self,
       nixpkgs,
       flake-utils,
@@ -20,7 +20,7 @@
       in
       {
         packages.default =
-          if true && pkgs.stdenv.isLinux && pkgs.stdenv.isx86_64 then
+          if pkgs.stdenv.isLinux && pkgs.stdenv.isx86_64 then
             # Use pre-built binary for Linux x86_64 to avoid compilation issues
             pkgs.stdenv.mkDerivation {
               pname = "fnox";
@@ -31,15 +31,9 @@
                 sha256 = "d593b853806212a75db74048d4cb27ac70f6811e591c1e29f496fb8af38475f3";
               };
 
-              sourceRoot = ".";
-
-              unpackPhase = ''
-                mkdir -p $sourceRoot
-                tar -xzf $src -C $sourceRoot --strip-components=0
-              '';
-
               installPhase = ''
                 mkdir -p $out/bin
+                tar -xzf $src
                 cp fnox $out/bin/
                 chmod +x $out/bin/fnox
               '';
@@ -53,51 +47,8 @@
               };
             }
           else
-            # Fallback to source build for other platforms
-            pkgs.rustPlatform.buildRustPackage {
-              pname = "fnox";
-              inherit version;
-
-              src = pkgs.fetchFromGitHub {
-                owner = "jdx";
-                repo = "fnox";
-                rev = "v${version}";
-                hash = "sha256-ThGs9KFbwVp80RtivKOiwnrzx52H1t0RDu+EhUXHCzw=";
-              };
-
-              cargoHash = "sha256-U3poZWMd1AMYv1v/rCoCuL24mxQOo++1WkLD/SxwNvU=";
-
-              nativeBuildInputs = with pkgs; [
-                pkg-config
-                perl
-              ];
-
-              buildInputs =
-                with pkgs;
-                [
-                  openssl
-                  openssl.dev
-                ]
-                ++ lib.optionals stdenv.isDarwin [
-                  darwin.apple_sdk.frameworks.Security
-                  darwin.apple_sdk.frameworks.SystemConfiguration
-                ];
-
-              OPENSSL_NO_VENDOR = 1;
-              OPENSSL_DIR = "${pkgs.openssl.dev}";
-              OPENSSL_LIB_DIR = "${pkgs.openssl.out}/lib";
-              OPENSSL_INCLUDE_DIR = "${pkgs.openssl.dev}/include";
-              PERL = "${pkgs.perl}/bin/perl";
-
-              doCheck = false;
-
-              meta = with pkgs.lib; {
-                description = "A shell-agnostic secret manager";
-                homepage = "https://github.com/jdx/fnox";
-                license = licenses.mit;
-                maintainers = [ ];
-              };
-            };
+            # Fallback to input for other platforms
+            inputs.fnox.packages.${pkgs.stdenv.hostPlatform.system}.default;
       }
     );
 }
