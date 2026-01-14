@@ -133,10 +133,10 @@
           };
         };
 
-        # Default: sensible choice based on platform
-        # - Linux x86_64: use prebuilt binary (faster, no compilation)
-        # - Other platforms: build from source (necessary for compatibility)
-        fnoxPackage = if pkgs.stdenv.isLinux && pkgs.stdenv.isx86_64 then fnoxBinary else fnoxFromSource;
+        # Default: build from source for Nix compatibility.
+        # The prebuilt upstream tarball is dynamically linked against `/lib64/ld-linux-*.so.*`,
+        # which does not work on NixOS without extra compatibility layers (e.g. nix-ld).
+        fnoxPackage = fnoxFromSource;
 
         wrappedCommands =
           (pkgs.lib.optionalAttrs (pkgs ? opencode) {
