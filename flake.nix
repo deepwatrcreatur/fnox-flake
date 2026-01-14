@@ -42,14 +42,20 @@
           pkgs.writeShellScriptBin name ''
             set -euo pipefail
 
+            FNOX_BIN="${fnoxPackage}/bin/fnox"
+            FNOX_CONFIG_PATH="''${FNOX_CONFIG:-$HOME/.config/fnox/config.toml}"
+            export FNOX_AGE_KEY_FILE="''${FNOX_AGE_KEY_FILE:-$HOME/.config/sops/age/keys.txt}"
+
             ${pkgs.lib.concatMapStringsSep "\n" (secret: ''
               # Decrypt ${secret.envVar} from fnox
-              if ! ${secret.envVar}=$(${fnoxPackage}/bin/fnox get "${secret.fnoxPath}" 2>/dev/null); then
+              value=""
+              if ! value=$("$FNOX_BIN" -c "$FNOX_CONFIG_PATH" get "${secret.fnoxPath}" 2>&1); then
                 echo "Error: Failed to decrypt secret '${secret.fnoxPath}' from fnox for ${secret.envVar}" >&2
-                echo "Make sure the secret exists: fnox set ${secret.fnoxPath} <value>" >&2
+                echo "$value" >&2
+                echo "Make sure the secret exists: fnox -c $FNOX_CONFIG_PATH set ${secret.fnoxPath} <value>" >&2
                 exit 1
               fi
-              export ${secret.envVar}
+              export ${secret.envVar}="$value"
             '') secrets}
 
             ${extraWrapperScript}
@@ -175,6 +181,19 @@
                 {
                   envVar = "GH_TOKEN";
                   fnoxPath = "GITHUB_TOKEN";
+                }
+              ];
+            };
+          })
+          // (pkgs.lib.optionalAttrs (pkgs ? bitwarden-cli) {
+            bw-fnox = mkWrappedCommand {
+              name = "bw-fnox";
+              command = pkgs.bitwarden-cli;
+              binaryName = "bw";
+              secrets = [
+                {
+                  envVar = "BW_SESSION";
+                  fnoxPath = "BW_SESSION";
                 }
               ];
             };
