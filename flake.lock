@@ -18,6 +18,23 @@
         "type": "github"
       }
     },
+    "fnox-src": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1764269156,
+        "narHash": "sha256-ThGs9KFbwVp80RtivKOiwnrzx52H1t0RDu+EhUXHCzw=",
+        "owner": "jdx",
+        "repo": "fnox",
+        "rev": "fe25084e61d21f2bd33305b9fa67136956d3ab9c",
+        "type": "github"
+      },
+      "original": {
+        "owner": "jdx",
+        "ref": "v1.7.0",
+        "repo": "fnox",
+        "type": "github"
+      }
+    },
     "nixpkgs": {
       "locked": {
         "lastModified": 1767892417,
@@ -37,6 +54,7 @@
     "root": {
       "inputs": {
         "flake-utils": "flake-utils",
+        "fnox-src": "fnox-src",
         "nixpkgs": "nixpkgs"
       }
     },

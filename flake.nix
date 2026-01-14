@@ -4,6 +4,10 @@
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     flake-utils.url = "github:numtide/flake-utils";
+    fnox-src = {
+      url = "github:jdx/fnox/v1.7.0";
+      flake = false;
+    };
   };
 
   outputs =
@@ -11,53 +15,197 @@
       self,
       nixpkgs,
       flake-utils,
+      fnox-src,
     }:
     flake-utils.lib.eachDefaultSystem (
       system:
       let
         pkgs = nixpkgs.legacyPackages.${system};
         version = "1.7.0";
+
+        # Function to create a wrapped command with fnox-decrypted secrets
+        # Usage: mkWrappedCommand {
+        #   name = "opencode";
+        #   command = pkgs.opencode;
+        #   secrets = [
+        #     { envVar = "ANTHROPIC_API_KEY"; fnoxPath = "anthropic_api_key"; }
+        #   ];
+        # }
+        mkWrappedCommand =
+          {
+            name,
+            command,
+            binaryName ? name,
+            secrets ? [ ],
+            extraWrapperScript ? "",
+          }:
+          pkgs.writeShellScriptBin name ''
+            set -euo pipefail
+
+            ${pkgs.lib.concatMapStringsSep "\n" (secret: ''
+              # Decrypt ${secret.envVar} from fnox
+              if ! ${secret.envVar}=$(${fnoxPackage}/bin/fnox get "${secret.fnoxPath}" 2>/dev/null); then
+                echo "Error: Failed to decrypt secret '${secret.fnoxPath}' from fnox for ${secret.envVar}" >&2
+                echo "Make sure the secret exists: fnox set ${secret.fnoxPath} <value>" >&2
+                exit 1
+              fi
+              export ${secret.envVar}
+            '') secrets}
+
+            ${extraWrapperScript}
+
+            # Execute the real command with all arguments
+            exec ${command}/bin/${binaryName} "$@"
+          '';
+
+        # Build fnox from source using Rust
+        fnoxFromSource = pkgs.rustPlatform.buildRustPackage {
+          pname = "fnox";
+          inherit version;
+
+          src = fnox-src;
+
+          cargoHash = "sha256-U3poZWMd1AMYv1v/rCoCuL24mxQOo++1WkLD/SxwNvU=";
+
+          nativeBuildInputs = with pkgs; [
+            perl
+            pkg-config
+          ];
+
+          buildInputs = with pkgs; [
+            openssl
+          ];
+
+          # Skip tests that require DBus and other runtime dependencies
+          doCheck = false;
+
+          meta = with pkgs.lib; {
+            description = "A shell-agnostic secret manager";
+            homepage = "https://github.com/jdx/fnox";
+            license = licenses.mit;
+            maintainers = [ ];
+            platforms = platforms.unix;
+          };
+        };
+
+        # Pre-built binary for Linux x86_64 (faster, no compilation needed)
+        fnoxBinary = pkgs.stdenv.mkDerivation {
+          pname = "fnox";
+          inherit version;
+
+          src = pkgs.fetchurl {
+            url = "https://github.com/jdx/fnox/releases/download/v${version}/fnox-x86_64-unknown-linux-gnu.tar.gz";
+            sha256 = "d593b853806212a75db74048d4cb27ac70f6811e591c1e29f496fb8af38475f3";
+          };
+
+          sourceRoot = ".";
+
+          unpackPhase = ''
+            runHook preUnpack
+            tar -xzf "$src"
+            runHook postUnpack
+          '';
+
+          dontConfigure = true;
+          dontBuild = true;
+
+          installPhase = ''
+            runHook preInstall
+
+            mkdir -p "$out/bin"
+            install -m755 fnox "$out/bin/fnox"
+
+            runHook postInstall
+          '';
+
+          meta = with pkgs.lib; {
+            description = "A shell-agnostic secret manager";
+            homepage = "https://github.com/jdx/fnox";
+            license = licenses.mit;
+            maintainers = [ ];
+            platforms = [ "x86_64-linux" ];
+          };
+        };
+
+        # Default: sensible choice based on platform
+        # - Linux x86_64: use prebuilt binary (faster, no compilation)
+        # - Other platforms: build from source (necessary for compatibility)
+        fnoxPackage = if pkgs.stdenv.isLinux && pkgs.stdenv.isx86_64 then fnoxBinary else fnoxFromSource;
+
+        wrappedCommands =
+          (pkgs.lib.optionalAttrs (pkgs ? opencode) {
+            opencode-claude = mkWrappedCommand {
+              name = "opencode-claude";
+              command = pkgs.opencode;
+              binaryName = "opencode";
+              secrets = [
+                {
+                  envVar = "ANTHROPIC_API_KEY";
+                  fnoxPath = "anthropic_api_key";
+                }
+              ];
+            };
+
+            opencode-zai = mkWrappedCommand {
+              name = "opencode-zai";
+              command = pkgs.opencode;
+              binaryName = "opencode";
+              secrets = [
+                {
+                  envVar = "OPENAI_API_KEY";
+                  fnoxPath = "Z_AI_API_KEY";
+                }
+              ];
+              extraWrapperScript = ''
+                export OPENCODE_PROVIDER="z.ai"
+                export OPENCODE_MODEL="GLM 4.7"
+              '';
+            };
+          })
+          // (pkgs.lib.optionalAttrs (pkgs ? gh) {
+            gh-fnox = mkWrappedCommand {
+              name = "gh-fnox";
+              command = pkgs.gh;
+              binaryName = "gh";
+              secrets = [
+                {
+                  envVar = "GITHUB_TOKEN";
+                  fnoxPath = "GITHUB_TOKEN";
+                }
+                {
+                  envVar = "GH_TOKEN";
+                  fnoxPath = "GITHUB_TOKEN";
+                }
+              ];
+            };
+          });
       in
       {
-        packages.default =
-          if pkgs.stdenv.isLinux && pkgs.stdenv.isx86_64 then
-            # Use pre-built binary for Linux x86_64 to avoid compilation issues
-            pkgs.stdenv.mkDerivation {
-              pname = "fnox";
-              inherit version;
+        packages = {
+          default = fnoxPackage;
+          fnox = fnoxPackage;
+          fnox-from-source = fnoxFromSource;
+          fnox-binary = fnoxBinary;
+        }
+        // wrappedCommands;
 
-              src = pkgs.fetchurl {
-                url = "https://github.com/jdx/fnox/releases/download/v${version}/fnox-x86_64-unknown-linux-gnu.tar.gz";
-                sha256 = "d593b853806212a75db74048d4cb27ac70f6811e591c1e29f496fb8af38475f3";
-              };
+        # Export the wrapper function for use in other flakes
+        lib = {
+          inherit mkWrappedCommand;
+        };
 
-              dontUnpack = true;
-              dontConfigure = true;
-              dontBuild = true;
-
-              installPhase = ''
-                runHook preInstall
-
-                tmpdir="$(mktemp -d)"
-                tar -xzf "$src" -C "$tmpdir"
-
-                mkdir -p "$out/bin"
-                install -m755 "$tmpdir/fnox" "$out/bin/fnox"
-
-                runHook postInstall
-              '';
-
-              meta = with pkgs.lib; {
-                description = "A shell-agnostic secret manager";
-                homepage = "https://github.com/jdx/fnox";
-                license = licenses.mit;
-                maintainers = [ ];
-                platforms = [ "x86_64-linux" ];
-              };
-            }
-          else
-            # Fallback to input for other platforms
-            inputs.fnox.packages.${pkgs.stdenv.hostPlatform.system}.default;
+        # Dev shell with atticd
+        devShells.default = pkgs.mkShell {
+          packages = [
+            pkgs.atticd
+            pkgs.attic-client
+          ];
+        };
       }
-    );
+    )
+    // {
+      overlays.default = final: prev: {
+        fnox = self.packages.${final.stdenv.hostPlatform.system}.default;
+      };
+    };
 }
