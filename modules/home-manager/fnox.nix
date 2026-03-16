@@ -127,6 +127,7 @@ in
     home.activation.fnoxSeedSecrets = lib.mkIf (cfg.seedSecretSources != { }) (
       lib.hm.dag.entryAfter [ "writeBoundary" ] (
         fnoxLib.mkSeedSecretsScript {
+          fnoxPackage = cfg.package;
           secretSources = cfg.seedSecretSources;
         }
       )

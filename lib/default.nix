@@ -53,11 +53,14 @@ rec {
       ${lib.concatMapStringsSep "\n" (
         secret: ''
           value=""
-          if ! value=$("$FNOX_BIN" -c "$FNOX_CONFIG_PATH" get "${secret.fnoxPath}" 2>&1); then
+          err_file="$(mktemp)"
+          if ! value=$("$FNOX_BIN" -c "$FNOX_CONFIG_PATH" get "${secret.fnoxPath}" 2>"$err_file"); then
             echo "Error: failed to decrypt '${secret.fnoxPath}' for ${secret.envVar}" >&2
-            echo "$value" >&2
+            cat "$err_file" >&2
+            rm -f "$err_file"
             exit 1
           fi
+          rm -f "$err_file"
           export ${secret.envVar}="$value"
         ''
       ) secrets}
@@ -99,6 +102,7 @@ rec {
 
   mkSeedSecretsScript =
     {
+      fnoxPackage,
       secretSources,
     }:
     let
@@ -107,39 +111,58 @@ rec {
         ''
           for source in ${lib.concatMapStringsSep " " (source: "\"${source}\"") sources}; do
             if [ -f "$source" ]; then
-              seed_secret ${lib.escapeShellArg name} "$source"
-              break
+              if seed_secret ${lib.escapeShellArg name} "$source"; then
+                break
+              fi
+              status=$?
+              if [ "$status" -eq 1 ]; then
+                exit 1
+              fi
             fi
           done
         '';
     in
     ''
-      if command -v fnox >/dev/null 2>&1; then
-        export FNOX_AGE_KEY_FILE="''${FNOX_AGE_KEY_FILE:-$HOME/.config/sops/age/keys.txt}"
-        export FNOX_CONFIG="''${FNOX_CONFIG:-$HOME/.config/fnox/config.toml}"
+      FNOX_BIN="${fnoxPackage}/bin/fnox"
+      export FNOX_AGE_KEY_FILE="''${FNOX_AGE_KEY_FILE:-$HOME/.config/sops/age/keys.txt}"
+      export FNOX_CONFIG="''${FNOX_CONFIG:-$HOME/.config/fnox/config.toml}"
 
-        seed_secret() {
-          name="$1"
-          file="$2"
-
-          if [ -z "$file" ] || [ ! -f "$file" ]; then
-            return 0
-          fi
-
-          if fnox -c "$FNOX_CONFIG" get "$name" >/dev/null 2>&1; then
-            return 0
-          fi
-
-          value="$(cat "$file" 2>/dev/null || true)"
-          if [ -z "$value" ]; then
-            return 0
-          fi
-
-          fnox -c "$FNOX_CONFIG" set "$name" "$value" >/dev/null 2>&1 || true
-        }
-
-        ${lib.concatStringsSep "\n" (lib.mapAttrsToList renderSources secretSources)}
+      if [ ! -x "$FNOX_BIN" ]; then
+        echo "Warning: fnox binary not found at $FNOX_BIN; skipping fnox secret seeding" >&2
+        exit 0
       fi
+
+      seed_secret() {
+        name="$1"
+        file="$2"
+
+        if [ -z "$file" ] || [ ! -f "$file" ]; then
+          return 2
+        fi
+
+        if "$FNOX_BIN" -c "$FNOX_CONFIG" get "$name" >/dev/null 2>&1; then
+          return 0
+        fi
+
+        if [ ! -r "$file" ]; then
+          echo "Warning: fnox seed source '$file' for '$name' is not readable; trying next source" >&2
+          return 2
+        fi
+
+        value="$(cat "$file" 2>/dev/null || true)"
+        if [ -z "$value" ]; then
+          return 2
+        fi
+
+        set_output=""
+        if ! set_output=$("$FNOX_BIN" -c "$FNOX_CONFIG" set "$name" "$value" 2>&1); then
+          echo "Error: failed to seed fnox secret '$name' from '$file'" >&2
+          echo "$set_output" >&2
+          return 1
+        fi
+      }
+
+      ${lib.concatStringsSep "\n" (lib.mapAttrsToList renderSources secretSources)}
     '';
 
   defaultWrappedCommandSpecs =
@@ -153,6 +176,7 @@ rec {
         secrets = [
           (mkSecretSpec {
             envVar = "ANTHROPIC_API_KEY";
+            fnoxPath = "anthropic_api_key";
           })
         ];
       };
