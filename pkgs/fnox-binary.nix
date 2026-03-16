@@ -8,7 +8,7 @@ pkgs.stdenv.mkDerivation {
 
   src = pkgs.fetchurl {
     url = "https://github.com/jdx/fnox/releases/download/v${version}/fnox-x86_64-unknown-linux-gnu.tar.gz";
-    sha256 = "0sjlgm1ncqhb44n1slv5bjdcwiz6fchh1vaych79jsgj91vf8j7p";
+    sha256 = "sha256-1ZO4U4BiEqddt0BI1MsnrHD2gR5ZHB4p9Jb7ivOEdfM=";
   };
 
   sourceRoot = ".";
