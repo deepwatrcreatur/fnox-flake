@@ -1,13 +1,9 @@
 {
-  description = "A flake for fnox, a secret manager";
+  description = "Fnox flake with packages, wrappers, apps, and Home Manager integration";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     flake-utils.url = "github:numtide/flake-utils";
-    fnox-src = {
-      url = "github:jdx/fnox/v1.7.0";
-      flake = false;
-    };
   };
 
   outputs =
@@ -15,210 +11,111 @@
       self,
       nixpkgs,
       flake-utils,
-      fnox-src,
     }:
+    let
+      version = "1.7.0";
+      fnoxSrc = builtins.fetchTarball {
+        url = "https://github.com/jdx/fnox/archive/refs/tags/v${version}.tar.gz";
+        sha256 = "sha256:0g0bqx2qb17g1q8xvml7kp3z6yn2laivqqhvs5y5mhavl7saq4af";
+      };
+    in
     flake-utils.lib.eachDefaultSystem (
       system:
       let
         pkgs = nixpkgs.legacyPackages.${system};
-        version = "1.7.0";
+        fnoxLib = import ./lib/default.nix { inherit (pkgs) lib; inherit pkgs; };
 
-        # Function to create a wrapped command with fnox-decrypted secrets
-        # Usage: mkWrappedCommand {
-        #   name = "opencode";
-        #   command = pkgs.opencode;
-        #   secrets = [
-        #     { envVar = "ANTHROPIC_API_KEY"; fnoxPath = "anthropic_api_key"; }
-        #   ];
-        # }
-        mkWrappedCommand =
-          {
-            name,
-            command,
-            binaryName ? name,
-            secrets ? [ ],
-            extraWrapperScript ? "",
-          }:
-          pkgs.writeShellScriptBin name ''
-            set -euo pipefail
-
-            FNOX_BIN="${fnoxPackage}/bin/fnox"
-            FNOX_CONFIG_PATH="''${FNOX_CONFIG:-$HOME/.config/fnox/config.toml}"
-            export FNOX_AGE_KEY_FILE="''${FNOX_AGE_KEY_FILE:-$HOME/.config/sops/age/keys.txt}"
-
-            ${pkgs.lib.concatMapStringsSep "\n" (secret: ''
-              # Decrypt ${secret.envVar} from fnox
-              value=""
-              if ! value=$("$FNOX_BIN" -c "$FNOX_CONFIG_PATH" get "${secret.fnoxPath}" 2>&1); then
-                echo "Error: Failed to decrypt secret '${secret.fnoxPath}' from fnox for ${secret.envVar}" >&2
-                echo "$value" >&2
-                echo "Make sure the secret exists: fnox -c $FNOX_CONFIG_PATH set ${secret.fnoxPath} <value>" >&2
-                exit 1
-              fi
-              export ${secret.envVar}="$value"
-            '') secrets}
-
-            ${extraWrapperScript}
-
-            # Execute the real command with all arguments
-            exec ${command}/bin/${binaryName} "$@"
-          '';
-
-        # Build fnox from source using Rust
-        fnoxFromSource = pkgs.rustPlatform.buildRustPackage {
-          pname = "fnox";
-          inherit version;
-
-          src = fnox-src;
-
-          cargoHash = "sha256-U3poZWMd1AMYv1v/rCoCuL24mxQOo++1WkLD/SxwNvU=";
-
-          nativeBuildInputs = with pkgs; [
-            perl
-            pkg-config
-          ];
-
-          buildInputs = with pkgs; [
-            openssl
-          ];
-
-          # Skip tests that require DBus and other runtime dependencies
-          doCheck = false;
-
-          meta = with pkgs.lib; {
-            description = "A shell-agnostic secret manager";
-            homepage = "https://github.com/jdx/fnox";
-            license = licenses.mit;
-            maintainers = [ ];
-            platforms = platforms.unix;
-          };
+        fnoxFromSource = import ./pkgs/fnox-source.nix {
+          inherit pkgs version fnoxSrc;
         };
 
-        # Pre-built binary for Linux x86_64 (faster, no compilation needed)
-        fnoxBinary = pkgs.stdenv.mkDerivation {
-          pname = "fnox";
-          inherit version;
+        fnoxBinary =
+          if system == "x86_64-linux" then
+            import ./pkgs/fnox-binary.nix {
+              inherit pkgs version;
+            }
+          else
+            null;
 
-          src = pkgs.fetchurl {
-            url = "https://github.com/jdx/fnox/releases/download/v${version}/fnox-x86_64-unknown-linux-gnu.tar.gz";
-            sha256 = "d593b853806212a75db74048d4cb27ac70f6811e591c1e29f496fb8af38475f3";
-          };
-
-          sourceRoot = ".";
-
-          unpackPhase = ''
-            runHook preUnpack
-            tar -xzf "$src"
-            runHook postUnpack
-          '';
-
-          dontConfigure = true;
-          dontBuild = true;
-
-          installPhase = ''
-            runHook preInstall
-
-            mkdir -p "$out/bin"
-            install -m755 fnox "$out/bin/fnox"
-
-            runHook postInstall
-          '';
-
-          meta = with pkgs.lib; {
-            description = "A shell-agnostic secret manager";
-            homepage = "https://github.com/jdx/fnox";
-            license = licenses.mit;
-            maintainers = [ ];
-            platforms = [ "x86_64-linux" ];
-          };
-        };
-
-        # Default: build from source for Nix compatibility.
-        # The prebuilt upstream tarball is dynamically linked against `/lib64/ld-linux-*.so.*`,
-        # which does not work on NixOS without extra compatibility layers (e.g. nix-ld).
         fnoxPackage = fnoxFromSource;
 
-        wrappedCommands =
-          (pkgs.lib.optionalAttrs (pkgs ? opencode) {
-            opencode-claude = mkWrappedCommand {
-              name = "opencode-claude";
-              command = pkgs.opencode;
-              binaryName = "opencode";
-              secrets = [
-                {
-                  envVar = "ANTHROPIC_API_KEY";
-                  fnoxPath = "anthropic_api_key";
-                }
-              ];
-            };
+        wrappedCommandSpecs = fnoxLib.defaultWrappedCommandSpecs { inherit pkgs; };
+        wrappedCommands = pkgs.lib.mapAttrs (
+          name: spec:
+          fnoxLib.mkWrappedCommand ({
+            inherit name fnoxPackage;
+          } // spec)
+        ) wrappedCommandSpecs;
 
-            opencode-zai = mkWrappedCommand {
-              name = "opencode-zai";
-              command = pkgs.opencode;
-              binaryName = "opencode";
-              secrets = [
-                {
-                  envVar = "OPENAI_API_KEY";
-                  fnoxPath = "Z_AI_API_KEY";
-                }
-              ];
-              extraWrapperScript = ''
-                export OPENCODE_PROVIDER="z.ai"
-                export OPENCODE_MODEL="GLM 4.7"
+        packages =
+          {
+            default = fnoxPackage;
+            fnox = fnoxPackage;
+            fnox-from-source = fnoxFromSource;
+          }
+          // pkgs.lib.optionalAttrs (fnoxBinary != null) {
+            fnox-binary = fnoxBinary;
+          }
+          // wrappedCommands;
+
+        apps = pkgs.lib.mapAttrs (_: drv: {
+          type = "app";
+          program = "${drv}/bin/${drv.meta.mainProgram or drv.pname or drv.name}";
+        }) packages;
+
+        checks =
+          {
+            fnox-config-render =
+              let
+                configToml = pkgs.writeText "fnox-config.toml" (
+                  fnoxLib.mkFnoxConfigToml {
+                    recipients = [
+                      "age1example000000000000000000000000000000000000000000000000000000"
+                    ];
+                  }
+                );
+              in
+              pkgs.runCommand "fnox-config-render-check" { } ''
+                grep -q '\[providers.age\]' ${configToml}
+                grep -q '\[secrets.GITHUB_TOKEN\]' ${configToml}
+                grep -q 'ANTHROPIC_API_KEY' ${configToml}
+                touch $out
               '';
-            };
-          })
-          // (pkgs.lib.optionalAttrs (pkgs ? gh) {
-            gh-fnox = mkWrappedCommand {
-              name = "gh-fnox";
-              command = pkgs.gh;
-              binaryName = "gh";
-              secrets = [
-                {
-                  envVar = "GITHUB_TOKEN";
-                  fnoxPath = "GITHUB_TOKEN";
-                }
-                {
-                  envVar = "GH_TOKEN";
-                  fnoxPath = "GITHUB_TOKEN";
-                }
-              ];
-            };
-          })
-          // (pkgs.lib.optionalAttrs (pkgs ? bitwarden-cli) {
-            bw-fnox = mkWrappedCommand {
-              name = "bw-fnox";
-              command = pkgs.bitwarden-cli;
-              binaryName = "bw";
-              secrets = [
-                {
-                  envVar = "BW_SESSION";
-                  fnoxPath = "BW_SESSION";
-                }
-              ];
-            };
-          });
+          }
+          // pkgs.lib.optionalAttrs (wrappedCommands ? gh-fnox) {
+            gh-wrapper-script = pkgs.runCommand "gh-fnox-wrapper-check" { } ''
+              grep -q 'export GITHUB_TOKEN=' ${wrappedCommands.gh-fnox}/bin/gh-fnox
+              grep -q 'export GH_TOKEN=' ${wrappedCommands.gh-fnox}/bin/gh-fnox
+              touch $out
+            '';
+          }
+          // pkgs.lib.optionalAttrs (wrappedCommands ? opencode-zai) {
+            opencode-zai-wrapper-script = pkgs.runCommand "opencode-zai-wrapper-check" { } ''
+              grep -q 'OPENCODE_PROVIDER="z.ai"' ${wrappedCommands.opencode-zai}/bin/opencode-zai
+              grep -q 'OPENAI_API_KEY' ${wrappedCommands.opencode-zai}/bin/opencode-zai
+              touch $out
+            '';
+          };
+
+        devShell = pkgs.mkShell {
+          packages = with pkgs; [
+            cargo
+            cargo-nextest
+            clippy
+            openssl
+            pkg-config
+            rustc
+            rustfmt
+          ];
+        };
       in
       {
-        packages = {
-          default = fnoxPackage;
-          fnox = fnoxPackage;
-          fnox-from-source = fnoxFromSource;
-          fnox-binary = fnoxBinary;
-        }
-        // wrappedCommands;
+        inherit apps checks packages;
 
-        # Export the wrapper function for use in other flakes
-        lib = {
-          inherit mkWrappedCommand;
-        };
+        devShells.default = devShell;
 
-        # Dev shell with atticd
-        devShells.default = pkgs.mkShell {
-          packages = [
-            pkgs.atticd
-            pkgs.attic-client
-          ];
+        lib = fnoxLib // {
+          inherit wrappedCommandSpecs;
         };
       }
     )
@@ -226,5 +123,7 @@
       overlays.default = final: prev: {
         fnox = self.packages.${final.stdenv.hostPlatform.system}.default;
       };
+
+      homeManagerModules.default = ./modules/home-manager/fnox.nix;
     };
 }
