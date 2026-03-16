@@ -23,7 +23,7 @@ in
     package = lib.mkOption {
       type = lib.types.nullOr lib.types.package;
       default = if pkgs ? fnox then pkgs.fnox else null;
-      description = "Fnox package to install.";
+      description = "Fnox package to install. Defaults to pkgs.fnox when the fnox overlay is applied.";
     };
 
     configRelativePath = lib.mkOption {

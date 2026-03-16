@@ -9,11 +9,13 @@
 - `packages.<system>.gh-fnox`, `bw-fnox`, `opencode-claude`, `opencode-zai`: wrapped commands that load only the secrets they need
 - `apps.<system>.*`: `nix run` entrypoints for the packages above
 - `lib.<system>`:
+  - `mkSecretSpec`
   - `mkWrappedCommand`
   - `mkFnoxConfigToml`
   - `mkSeedSecretsScript`
   - `defaultSecretDefinitions`
   - `defaultWrappedCommandSpecs`
+  - `wrappedCommandSpecs`
 - `homeManagerModules.default`: reusable Home Manager module
 - `overlays.default`: exposes `fnox` in an overlay
 
@@ -45,6 +47,7 @@
 ```nix
 {
   imports = [ inputs.fnox.homeManagerModules.default ];
+  nixpkgs.overlays = [ inputs.fnox.overlays.default ];
 
   programs.fnox = {
     enable = true;
@@ -64,6 +67,8 @@
   };
 }
 ```
+
+The module default for `programs.fnox.package` is `pkgs.fnox`, so the overlay is required unless you set `programs.fnox.package` explicitly.
 
 ## Development
 
