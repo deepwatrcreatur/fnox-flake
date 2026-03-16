@@ -113,10 +113,11 @@ rec {
             if [ -f "$source" ]; then
               if seed_secret ${lib.escapeShellArg name} "$source"; then
                 break
-              fi
-              status=$?
-              if [ "$status" -eq 1 ]; then
-                exit 1
+              else
+                status=$?
+                if [ "$status" -eq 1 ]; then
+                  exit 1
+                fi
               fi
             fi
           done

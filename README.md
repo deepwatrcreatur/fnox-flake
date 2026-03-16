@@ -29,7 +29,10 @@
       modules = [
         ({ pkgs, ... }: {
           nixpkgs.overlays = [ fnox.overlays.default ];
-          environment.systemPackages = [ pkgs.fnox pkgs.gh-fnox ];
+          environment.systemPackages = [
+            pkgs.fnox
+            fnox.packages.${pkgs.system}.gh-fnox
+          ];
         })
       ];
     };
