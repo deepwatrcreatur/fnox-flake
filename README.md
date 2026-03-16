@@ -6,7 +6,7 @@
 
 - `packages.<system>.fnox`: source-built `fnox`
 - `packages.<system>.fnox-binary`: upstream binary, only on `x86_64-linux`
-- `packages.<system>.gh-fnox`, `bw-fnox`, `opencode-claude`, `opencode-zai`: wrapped commands that load only the secrets they need
+- `packages.<system>.gh-fnox`, `bw-fnox`, `opencode-zai`: wrapped commands that load only the secrets they need
 - `apps.<system>.*`: `nix run` entrypoints for the packages above
 - `lib.<system>`:
   - `mkSecretSpec`

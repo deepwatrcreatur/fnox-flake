@@ -171,17 +171,6 @@ rec {
       pkgs,
     }:
     (lib.optionalAttrs (pkgs ? opencode) {
-      opencode-claude = {
-        command = pkgs.opencode;
-        binaryName = "opencode";
-        secrets = [
-          (mkSecretSpec {
-            envVar = "ANTHROPIC_API_KEY";
-            fnoxPath = "anthropic_api_key";
-          })
-        ];
-      };
-
       opencode-zai = {
         command = pkgs.opencode;
         binaryName = "opencode";
