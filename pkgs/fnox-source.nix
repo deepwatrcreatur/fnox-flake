@@ -9,7 +9,7 @@ pkgs.rustPlatform.buildRustPackage {
 
   src = fnoxSrc;
 
-  cargoHash = "sha256-U3poZWMd1AMYv1v/rCoCuL24mxQOo++1WkLD/SxwNvU=";
+  cargoHash = "sha256-4ZHB1N+9hTcC75RvSnjx8rZfwgXRgz27fCytMnKWDZw=";
 
   nativeBuildInputs = with pkgs; [
     perl
@@ -18,6 +18,7 @@ pkgs.rustPlatform.buildRustPackage {
 
   buildInputs = with pkgs; [
     openssl
+    udev
   ];
 
   doCheck = false;
