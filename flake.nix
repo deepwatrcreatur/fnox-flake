@@ -13,6 +13,13 @@
       flake-utils,
     }:
     let
+      supportedSystems = [
+        "x86_64-linux"
+        "aarch64-linux"
+        "x86_64-darwin"
+        "aarch64-darwin"
+      ];
+      eachDefaultSystem = f: nixpkgs.lib.genAttrs supportedSystems f;
       version = "1.19.0";
       fnoxSrc = builtins.fetchTarball {
         url = "https://github.com/jdx/fnox/archive/refs/tags/v${version}.tar.gz";
@@ -45,7 +52,7 @@
           else
             null;
 
-        fnoxPackage = fnoxFromSource;
+        fnoxPackage = if fnoxBinary != null then fnoxBinary else fnoxFromSource;
 
         wrappedCommandSpecs = fnoxLib.defaultWrappedCommandSpecs { inherit pkgs; };
         wrappedCommands = pkgs.lib.mapAttrs (
@@ -130,7 +137,7 @@
     )
     // {
       overlays.default = final: prev: {
-        fnox = self.packages.${final.stdenv.hostPlatform.system}.default;
+        fnox = self.packages.${nixpkgs.lib.currentSystem}.default;
       };
 
       homeManagerModules.default = ./modules/home-manager/fnox.nix;
