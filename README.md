@@ -80,3 +80,11 @@ nix flake show
 ```
 
 The dev shell contains the Rust toolchain and packaging dependencies needed to maintain the fnox package build.
+
+## Agent Work Queue
+
+If you are assigning or running coding agents, start here:
+
+- [`docs/work-items/START-HERE.md`](docs/work-items/START-HERE.md)
+
+The seed roadmap behind that queue is tracked in [`IMPROVEMENTS.md`](IMPROVEMENTS.md).
