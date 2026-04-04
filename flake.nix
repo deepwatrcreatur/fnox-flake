@@ -111,6 +111,9 @@
             grep -q 'OPENAI_API_KEY' ${wrappedCommands.opencode-zai}/bin/opencode-zai
             touch $out
           '';
+        }
+        // import ./checks/wrapper-tests.nix {
+          inherit pkgs fnoxLib;
         };
 
         devShell = pkgs.mkShell {

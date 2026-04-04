@@ -1,4 +1,4 @@
-Status: `ready`
+Status: `done`
 Suggested branch: `test/fnox-wrapper-runtime-behavior`
 Priority: `high`
 
