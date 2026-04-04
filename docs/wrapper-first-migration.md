@@ -134,11 +134,30 @@ single-line token (not an error message).
 | `gh` | Yes | Single token (`GITHUB_TOKEN`/`GH_TOKEN`); `gh-fnox` is built-in |
 | `bw` (Bitwarden CLI) | Yes | Session token (`BW_SESSION`); `bw-fnox` is built-in |
 | `opencode` | Yes | Provider API key; `opencode-zai` is built-in |
-| `curl` / `httpie` | Yes | Any single API key; use `mkWrappedCommand` |
+| `claude` (Claude Code CLI) | Yes | `ANTHROPIC_API_KEY`; `claude-fnox` is built-in |
+| `gemini` (Gemini CLI) | Yes | `GEMINI_API_KEY`; `gemini-fnox` is built-in |
+| `curl` / `xh` / `httpie` | Repo-local | Invocation shape and required key vary per repo — use `mkWrappedCommand` rather than a shared default; see below |
+| Proxmox CLIs (`pvesh`, `qm`, `pveam`) | Repo-local | `PROXMOX_API_TOKEN` is in `defaultSecretDefinitions` but command patterns are host-specific — define locally with `mkWrappedCommand` |
 | `git` (credential helper) | Indirect | Use `gh-fnox` as the credential helper: `git config credential.helper 'gh-fnox auth git-credential'` |
 | `ssh` | No | Key agent handles authentication; no env var secret needed |
 | `nix` / `nixos-rebuild` | No | Does not read secrets from the environment |
 | Scripts that call multiple tools | Case-by-case | Wrap at the outermost entry point, not each inner tool call |
+
+### Why curl/xh and Proxmox are repo-local
+
+**curl / xh / httpie** — The secret to inject depends entirely on which API
+the command is calling. A generic `curl-api` wrapper would need to hardcode
+one key, which is too prescriptive. Use `mkWrappedCommand` in your flake and
+inject the specific key your repo needs. The
+[`examples/custom-wrapped-command.nix`](../examples/custom-wrapped-command.nix)
+file demonstrates exactly this pattern with curl.
+
+**Proxmox CLIs** — `PROXMOX_API_TOKEN` is declared in `defaultSecretDefinitions`
+so it participates in config generation and seeding. However, Proxmox
+invocation patterns (`pvesh`, `qm create`, `pveam update`, etc.) are too
+host-specific to be useful as a shared default. If your Proxmox workflows are
+stable and repeated across machines, define a repo-local `mkWrappedCommand`
+wrapper and consider contributing it upstream when the pattern solidifies.
 
 ## Wrapping a custom command
 
