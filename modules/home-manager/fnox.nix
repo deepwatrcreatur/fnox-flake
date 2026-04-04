@@ -105,12 +105,45 @@ in
   };
 
   config = lib.mkIf cfg.enable {
-    assertions = [
-      {
-        assertion = cfg.package != null;
-        message = "programs.fnox.enable requires programs.fnox.package or pkgs.fnox to be available.";
-      }
-    ];
+    assertions =
+      [
+        {
+          assertion = cfg.package != null;
+          message = "programs.fnox.enable requires programs.fnox.package or pkgs.fnox to be available.";
+        }
+        {
+          # An empty recipients list means fnox will generate a config with no
+          # age recipients, making it impossible to encrypt any secrets.
+          assertion = cfg.recipients != [ ];
+          message = ''
+            programs.fnox.recipients is empty. Provide at least one age public key so
+            fnox can encrypt secrets (e.g. programs.fnox.recipients = [ "age1..." ];).
+          '';
+        }
+      ]
+      ++ lib.concatLists (
+        lib.mapAttrsToList (
+          name: spec:
+          let
+            envVars = map (s: s.envVar) spec.secrets;
+            duplicateEnvVars = lib.unique (lib.filter (v: lib.count (x: x == v) envVars > 1) envVars);
+          in
+          [
+            {
+              # Two secrets in the same wrapper exporting to the same env var
+              # means the first value is silently overwritten.
+              assertion = duplicateEnvVars == [ ];
+              message = "programs.fnox.wrappedCommands.${name}: duplicate envVar(s): ${lib.concatStringsSep ", " duplicateEnvVars}. Each secret must export to a unique environment variable.";
+            }
+          ]
+          ++ map (secret: {
+            # A fnoxPath that isn't in secretDefinitions will cause fnox to fail
+            # at runtime with a confusing "secret not found" error.
+            assertion = lib.hasAttr secret.fnoxPath cfg.secretDefinitions;
+            message = "programs.fnox.wrappedCommands.${name}: fnoxPath '${secret.fnoxPath}' is not declared in programs.fnox.secretDefinitions. Add it to secretDefinitions or correct the fnoxPath.";
+          }) spec.secrets
+        ) cfg.wrappedCommands
+      );
 
     home.sessionVariables = {
       FNOX_AGE_KEY_FILE = cfg.ageKeyFile;
