@@ -1,6 +1,6 @@
-{
-  pkgs,
-  version,
+{ pkgs
+, version
+,
 }:
 let
   platformMap = {
@@ -54,9 +54,10 @@ else
     '';
 
     meta = with pkgs.lib; {
-      description = "A shell-agnostic secret manager";
+      description = "A shell-agnostic secret manager (pre-built binary)";
       homepage = "https://github.com/jdx/fnox";
       license = licenses.mit;
+      maintainers = with maintainers; [ ];
       mainProgram = "fnox";
       platforms = [ pkgs.stdenv.hostPlatform.system ];
     };
