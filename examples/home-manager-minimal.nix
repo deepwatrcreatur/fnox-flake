@@ -24,14 +24,15 @@
 #   the first readable, non-empty file wins. Already-seeded values are never
 #   overwritten. See docs/security.md for full precedence rules.
 
-{ ... }:
+{ config, lib, pkgs, ... }:
 {
   programs.fnox = {
     enable = true;
 
     # Your age public key (from age-keygen or similar).
+    # Replace with the output of: age-keygen 2>/dev/null | grep 'public key'
     recipients = [
-      "age1ql3z7hjy54pw3hyww5ayyfg7zqgvc7w3j2elw8zmrj2kg5sfn9aqmcac8p"
+      "age1replace-this-with-your-actual-age-public-key00000000000000000"
     ];
 
     # Optional: seed secrets from local files on activation.
