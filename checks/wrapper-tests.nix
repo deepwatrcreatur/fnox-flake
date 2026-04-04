@@ -2,9 +2,9 @@
 #
 # Each test uses a fake fnox binary so no real secrets or key files are needed.
 # Tests run as Nix sandbox derivations via pkgs.runCommand.
-{
-  pkgs,
-  fnoxLib,
+{ pkgs
+, fnoxLib
+,
 }:
 let
   # ---------------------------------------------------------------------------

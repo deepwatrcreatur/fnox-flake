@@ -1,6 +1,6 @@
-{
-  lib,
-  pkgs,
+{ lib
+, pkgs
+,
 }:
 let
   normalizedSecret =
@@ -26,22 +26,22 @@ rec {
   inherit defaultSecretDefinitions;
 
   mkSecretSpec =
-    {
-      envVar,
-      fnoxPath ? envVar,
+    { envVar
+    , fnoxPath ? envVar
+    ,
     }:
     {
       inherit envVar fnoxPath;
     };
 
   mkWrappedCommand =
-    {
-      name,
-      command,
-      fnoxPackage,
-      binaryName ? name,
-      secrets ? [ ],
-      extraWrapperScript ? "",
+    { name
+    , command
+    , fnoxPackage
+    , binaryName ? name
+    , secrets ? [ ]
+    , extraWrapperScript ? ""
+    ,
     }:
     pkgs.writeShellScriptBin name ''
       set -euo pipefail
@@ -76,11 +76,11 @@ rec {
     '';
 
   mkFnoxConfigToml =
-    {
-      recipients ? [ ],
-      secrets ? defaultSecretDefinitions,
-      extraProviders ? { },
-      extraConfig ? { },
+    { recipients ? [ ]
+    , secrets ? defaultSecretDefinitions
+    , extraProviders ? { }
+    , extraConfig ? { }
+    ,
     }:
     builtins.readFile (
       (pkgs.formats.toml { }).generate "fnox-config.toml" (
@@ -93,22 +93,24 @@ rec {
           }
           // extraProviders;
 
-          secrets = lib.mapAttrs (
-            _: value:
-            {
-              description = value.description;
-              default = value.provider;
-            }
-          ) (lib.mapAttrs normalizedSecret secrets);
+          secrets = lib.mapAttrs
+            (
+              _: value:
+                {
+                  description = value.description;
+                  default = value.provider;
+                }
+            )
+            (lib.mapAttrs normalizedSecret secrets);
         }
         // extraConfig
       )
     );
 
   mkSeedSecretsScript =
-    {
-      fnoxPackage,
-      secretSources,
+    { fnoxPackage
+    , secretSources
+    ,
     }:
     let
       renderSources =
@@ -172,8 +174,8 @@ rec {
     '';
 
   defaultWrappedCommandSpecs =
-    {
-      pkgs,
+    { pkgs
+    ,
     }:
     (lib.optionalAttrs (pkgs ? opencode) {
       opencode-zai = {
