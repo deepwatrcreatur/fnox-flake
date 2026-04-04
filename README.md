@@ -4,8 +4,9 @@
 
 ## Outputs
 
-- `packages.<system>.fnox`: source-built `fnox`
-- `packages.<system>.fnox-binary`: upstream binary, only on `x86_64-linux`
+- `packages.<system>.default`, `packages.<system>.fnox`: source-built `fnox` — reproducible, identical on all platforms
+- `packages.<system>.fnox-binary`: upstream pre-built binary (x86\_64-linux, aarch64-linux, x86\_64-darwin, aarch64-darwin) — opt-in for faster installs
+- `packages.<system>.fnox-from-source`: explicit alias for the source build
 - `packages.<system>.gh-fnox`, `bw-fnox`, `opencode-zai`: wrapped commands that load only the secrets they need
 - `apps.<system>.*`: `nix run` entrypoints for the packages above
 - `lib.<system>`:
@@ -18,6 +19,20 @@
   - `wrappedCommandSpecs`
 - `homeManagerModules.default`: reusable Home Manager module
 - `overlays.default`: exposes `fnox` in an overlay
+
+## Package Selection Strategy
+
+`packages.default` and `packages.fnox` are always the **source build**. This guarantees bit-for-bit reproducibility regardless of platform and does not depend on upstream publishing a binary release.
+
+Use `packages.fnox-binary` when build time matters and you are on a supported platform (x86\_64-linux, aarch64-linux, x86\_64-darwin, aarch64-darwin):
+
+```nix
+environment.systemPackages = [
+  fnox.packages.${pkgs.system}.fnox-binary  # pre-built, faster install
+];
+```
+
+The wrapped commands (`gh-fnox`, `bw-fnox`, `opencode-zai`) always use the source-built `fnox` internally so their behaviour is consistent across machines.
 
 ## Package Usage
 
