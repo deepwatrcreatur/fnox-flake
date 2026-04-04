@@ -1,7 +1,7 @@
-{
-  pkgs,
-  version,
-  fnoxSrc,
+{ pkgs
+, version
+, fnoxSrc
+,
 }:
 pkgs.rustPlatform.buildRustPackage {
   pname = "fnox";
@@ -27,6 +27,7 @@ pkgs.rustPlatform.buildRustPackage {
     description = "A shell-agnostic secret manager";
     homepage = "https://github.com/jdx/fnox";
     license = licenses.mit;
+    maintainers = with maintainers; [ ];
     mainProgram = "fnox";
     platforms = platforms.unix;
   };

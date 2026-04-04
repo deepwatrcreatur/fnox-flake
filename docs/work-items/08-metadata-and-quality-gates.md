@@ -1,4 +1,4 @@
-Status: `ready`
+Status: `done`
 Suggested branch: `chore/fnox-quality-gates`
 Priority: `low`
 
