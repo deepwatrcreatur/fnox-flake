@@ -50,17 +50,22 @@ rec {
       FNOX_CONFIG_PATH="''${FNOX_CONFIG:-$HOME/.config/fnox/config.toml}"
       export FNOX_AGE_KEY_FILE="''${FNOX_AGE_KEY_FILE:-$HOME/.config/sops/age/keys.txt}"
 
+      # Guarantee temp-file cleanup on any exit (normal, error, or signal).
+      # Namespaced to avoid colliding with extraWrapperScript variables.
+      _fnox_err_file=""
+      _fnox_cleanup() { rm -f "$_fnox_err_file"; }
+      trap _fnox_cleanup EXIT
+
       ${lib.concatMapStringsSep "\n" (
         secret: ''
           value=""
-          err_file="$(mktemp)"
-          if ! value=$("$FNOX_BIN" -c "$FNOX_CONFIG_PATH" get "${secret.fnoxPath}" 2>"$err_file"); then
+          _fnox_err_file="$(mktemp)"
+          if ! value=$("$FNOX_BIN" -c "$FNOX_CONFIG_PATH" get "${secret.fnoxPath}" 2>"$_fnox_err_file"); then
             echo "Error: failed to decrypt '${secret.fnoxPath}' for ${secret.envVar}" >&2
-            cat "$err_file" >&2
-            rm -f "$err_file"
+            cat "$_fnox_err_file" >&2
             exit 1
           fi
-          rm -f "$err_file"
+          rm -f "$_fnox_err_file"; _fnox_err_file=""
           export ${secret.envVar}="$value"
         ''
       ) secrets}
