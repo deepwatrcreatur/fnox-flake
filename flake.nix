@@ -13,13 +13,6 @@
     ,
     }:
     let
-      supportedSystems = [
-        "x86_64-linux"
-        "aarch64-linux"
-        "x86_64-darwin"
-        "aarch64-darwin"
-      ];
-      eachDefaultSystem = f: nixpkgs.lib.genAttrs supportedSystems f;
       version = "1.19.0";
       fnoxSrc = builtins.fetchTarball {
         url = "https://github.com/jdx/fnox/archive/refs/tags/v${version}.tar.gz";
