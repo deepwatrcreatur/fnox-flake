@@ -7,3 +7,8 @@ Priority: `low`
 ## Goal
 
 Reduce minor flake complexity without changing behavior.
+
+## Tasks
+
+- remove unused helper bindings
+- make system iteration strategy more consistent
