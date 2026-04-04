@@ -39,17 +39,13 @@ This folder is the agent-facing queue for `fnox-flake`.
 
 Highest value first:
 
-1. `01-centralize-version-and-release-bump-docs.md`
-2. `02-wrapper-runtime-tests.md`
-3. `10-bad-secret-file-handling.md`
-4. `11-wrapper-first-token-migration.md`
-5. `03-default-package-selection-strategy.md`
-6. `04-home-manager-validation.md`
-7. `05-shell-safety-and-portability.md`
-8. `06-security-model-and-ops-docs.md`
-9. `07-example-templates.md`
-10. `08-metadata-and-quality-gates.md`
-11. `09-flake-complexity-cleanup.md`
+1. `12-agent-cli-wrapper-coverage.md`
+2. `13-api-and-proxmox-helper-wrappers.md`
+3. `14-wrapper-catalog-and-support-boundary.md`
+4. `15-shellcheck-generated-scripts.md`
+5. `16-extended-wrapper-and-seed-tests.md`
+6. `17-home-manager-module-usability.md`
+7. `18-troubleshooting-guide.md`
 
 ## Source
 
