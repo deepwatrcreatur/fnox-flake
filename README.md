@@ -149,6 +149,16 @@ git add flake.nix pkgs/fnox-source.nix pkgs/fnox-binary.nix
 git commit -m "chore: update to fnox v${NEW_VERSION}"
 ```
 
+## Security and Operations
+
+See [`docs/security.md`](docs/security.md) for:
+
+- Trust model and asset table
+- Trailing newline behaviour of seeded/decrypted values
+- Environment variable and process-argument exposure surface
+- Seed operation precedence rules
+- Minimal-environment assumptions
+
 ## Development
 
 Run:
