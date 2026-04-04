@@ -1,4 +1,4 @@
-Status: `ready`
+Status: `done`
 Suggested branch: `refactor/fnox-flake-cleanup`
 Priority: `low`
 
