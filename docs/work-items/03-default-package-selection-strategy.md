@@ -1,4 +1,4 @@
-Status: `ready`
+Status: `done`
 Suggested branch: `design/fnox-default-package-strategy`
 Priority: `high`
 

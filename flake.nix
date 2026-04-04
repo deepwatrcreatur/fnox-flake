@@ -52,7 +52,12 @@
           else
             null;
 
-        fnoxPackage = if fnoxBinary != null then fnoxBinary else fnoxFromSource;
+        # Strategy: source-first for reproducibility.
+        # packages.default and packages.fnox always use the source build so that
+        # the result is identical across machines and does not depend on upstream
+        # releasing a binary for the current platform.
+        # Use packages.fnox-binary for a faster install when build time matters.
+        fnoxPackage = fnoxFromSource;
 
         wrappedCommandSpecs = fnoxLib.defaultWrappedCommandSpecs { inherit pkgs; };
         wrappedCommands = pkgs.lib.mapAttrs (
