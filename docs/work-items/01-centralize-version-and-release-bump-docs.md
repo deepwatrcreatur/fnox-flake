@@ -1,4 +1,4 @@
-Status: `in-progress`
+Status: `done`
 Suggested branch: `docs/fnox-release-bump-workflow`
 Priority: `high`
 

@@ -18,6 +18,10 @@ Task:
 - add a release bump workflow to `README.md`
 - make version/hash refreshes easier to follow for maintainers
 
+Deliver:
+- branch commit(s)
+- short summary of what is now canonical
+
 ## Prompt 2: Wrapper Runtime Tests
 
 Work on [`02-wrapper-runtime-tests.md`](./02-wrapper-runtime-tests.md).
@@ -27,6 +31,10 @@ Create a branch named `test/fnox-wrapper-runtime-behavior`.
 Task:
 - add behavior-oriented tests for wrapper success and failure paths
 - cover seed fallback behavior without requiring real secrets
+
+Deliver:
+- branch commit(s)
+- summary of runtime paths covered
 
 ## Prompt 3: Default Package Selection Strategy
 
@@ -38,6 +46,10 @@ Task:
 - evaluate whether `packages.default` should stay binary-first
 - propose or implement the clearest reproducibility-first strategy
 
+Deliver:
+- branch commit(s)
+- summary of the chosen default and tradeoffs
+
 ## Prompt 4: Home Manager Validation
 
 Work on [`04-home-manager-validation.md`](./04-home-manager-validation.md).
@@ -46,6 +58,10 @@ Create a branch named `feat/fnox-home-manager-validation`.
 
 Task:
 - add assertions for common misconfiguration cases in the Home Manager module
+
+Deliver:
+- branch commit(s)
+- list of new validation cases
 
 ## Prompt 5: Shell Safety And Portability
 
@@ -56,6 +72,10 @@ Create a branch named `fix/fnox-shell-safety`.
 Task:
 - harden generated scripts against whitespace and temp-file handling pitfalls
 
+Deliver:
+- branch commit(s)
+- summary of portability improvements
+
 ## Prompt 6: Security Model And Ops Docs
 
 Work on [`06-security-model-and-ops-docs.md`](./06-security-model-and-ops-docs.md).
@@ -65,6 +85,10 @@ Create a branch named `docs/fnox-security-model`.
 Task:
 - document operational expectations, precedence rules, and threat model basics
 
+Deliver:
+- branch commit(s)
+- summary of the clarified security/ops model
+
 ## Prompt 7: Example Templates
 
 Work on [`07-example-templates.md`](./07-example-templates.md).
@@ -72,7 +96,11 @@ Work on [`07-example-templates.md`](./07-example-templates.md).
 Create a branch named `feat/fnox-example-templates`.
 
 Task:
-- add structured examples or templates for common fnox-flake usage
+- add structured examples/templates for common fnox-flake usage
+
+Deliver:
+- branch commit(s)
+- summary of new example coverage
 
 ## Prompt 8: Metadata And Quality Gates
 
@@ -83,6 +111,10 @@ Create a branch named `chore/fnox-quality-gates`.
 Task:
 - improve metadata and add lightweight lint/format quality gates
 
+Deliver:
+- branch commit(s)
+- summary of new quality gates
+
 ## Prompt 9: Flake Complexity Cleanup
 
 Work on [`09-flake-complexity-cleanup.md`](./09-flake-complexity-cleanup.md).
@@ -91,3 +123,7 @@ Create a branch named `refactor/fnox-flake-cleanup`.
 
 Task:
 - remove minor flake complexity and unused bindings without changing behavior
+
+Deliver:
+- branch commit(s)
+- summary of simplifications made

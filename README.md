@@ -70,6 +70,85 @@
 
 The module default for `programs.fnox.package` is `pkgs.fnox`, so the overlay is required unless you set `programs.fnox.package` explicitly.
 
+## Version
+
+The canonical `fnox` version is defined in **`flake.nix`** at the top of the `let` block:
+
+```nix
+version = "1.19.0";
+fnoxSrc = builtins.fetchTarball {
+  url = "https://github.com/jdx/fnox/archive/refs/tags/v${version}.tar.gz";
+  sha256 = "sha256:...";
+};
+```
+
+All packages receive `version` as an argument — there is no other place to change the version string.
+
+Three hashes must be updated together whenever the version changes:
+
+| Hash | File | Purpose |
+|------|------|---------|
+| `fnoxSrc.sha256` | `flake.nix` | Source tarball |
+| `cargoHash` | `pkgs/fnox-source.nix` | Cargo dependency lock |
+| Per-platform `sha256` | `pkgs/fnox-binary.nix` | Pre-built binaries (4 platforms) |
+
+## Releasing a New fnox Version
+
+When upstream publishes a new release, update in this order:
+
+**1. Bump the version and source hash in `flake.nix`:**
+
+```bash
+# Set the new version
+NEW_VERSION="1.20.0"   # replace with target version
+
+# Get the new source hash
+nix-prefetch-url --unpack \
+  "https://github.com/jdx/fnox/archive/refs/tags/v${NEW_VERSION}.tar.gz"
+```
+
+Edit `flake.nix`:
+- set `version = "${NEW_VERSION}";`
+- set `fnoxSrc.sha256` to the hash printed above (use `sha256:` prefix)
+
+**2. Update `cargoHash` in `pkgs/fnox-source.nix`:**
+
+Set `cargoHash` to an empty string first, then let Nix tell you the correct hash:
+
+```bash
+# Temporarily set cargoHash = lib.fakeHash; in pkgs/fnox-source.nix, then:
+nix build .#fnox-from-source 2>&1 | grep 'got:'
+```
+
+Replace `cargoHash` with the `got:` value.
+
+**3. Update binary hashes in `pkgs/fnox-binary.nix`:**
+
+```bash
+for platform in x86_64-unknown-linux-gnu aarch64-unknown-linux-gnu \
+                x86_64-apple-darwin aarch64-apple-darwin; do
+  echo "=== ${platform} ==="
+  nix-prefetch-url \
+    "https://github.com/jdx/fnox/releases/download/v${NEW_VERSION}/fnox-${platform}.tar.gz"
+done
+```
+
+Update the four `sha256` entries in `pkgs/fnox-binary.nix`.
+
+**4. Validate:**
+
+```bash
+nix flake check
+nix flake show
+```
+
+**5. Commit:**
+
+```bash
+git add flake.nix pkgs/fnox-source.nix pkgs/fnox-binary.nix
+git commit -m "chore: update to fnox v${NEW_VERSION}"
+```
+
 ## Development
 
 Run:

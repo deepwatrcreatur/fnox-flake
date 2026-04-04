@@ -15,6 +15,8 @@ This folder is the agent-facing queue for `fnox-flake`.
   `done` if it records useful outcome notes.
 - `done` items must not remain in the active ranking; archive or delete them
   once their notes are no longer useful.
+- If the work changes shape materially, update the file instead of letting the
+  plan drift only in chat or PR comments.
 
 ## Status Model
 
