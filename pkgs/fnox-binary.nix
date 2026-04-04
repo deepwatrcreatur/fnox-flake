@@ -57,7 +57,7 @@ else
       description = "A shell-agnostic secret manager (pre-built binary)";
       homepage = "https://github.com/jdx/fnox";
       license = licenses.mit;
-      maintainers = with maintainers; [ ];
+      maintainers = [ ];
       mainProgram = "fnox";
       platforms = [ pkgs.stdenv.hostPlatform.system ];
     };

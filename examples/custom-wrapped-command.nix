@@ -48,7 +48,7 @@ fnoxLib.mkWrappedCommand {
 
   # Optional: extra shell code to run after secrets are loaded but before exec.
   extraWrapperScript = ''
-    # Example: set a default base URL using the key.
-    : "''${MY_SERVICE_URL:=https://api.example.com}"
+    # Example: set a default base URL if not already in the environment.
+    export MY_SERVICE_URL="''${MY_SERVICE_URL:-https://api.example.com}"
   '';
 }

@@ -16,10 +16,9 @@ pkgs.rustPlatform.buildRustPackage {
     pkg-config
   ];
 
-  buildInputs = with pkgs; [
-    openssl
-    udev
-  ];
+  buildInputs = with pkgs;
+    [ openssl ]
+    ++ lib.optionals stdenv.isLinux [ udev ];
 
   doCheck = false;
 
@@ -27,7 +26,7 @@ pkgs.rustPlatform.buildRustPackage {
     description = "A shell-agnostic secret manager";
     homepage = "https://github.com/jdx/fnox";
     license = licenses.mit;
-    maintainers = with maintainers; [ ];
+    maintainers = [ ];
     mainProgram = "fnox";
     platforms = platforms.unix;
   };

@@ -33,19 +33,10 @@
             inherit pkgs version fnoxSrc;
           };
 
-          fnoxBinary =
-            if
-              system == "x86_64-linux"
-              || system == "aarch64-linux"
-              || system == "x86_64-darwin"
-              || system == "aarch64-darwin"
-            then
-              import ./pkgs/fnox-binary.nix
-                {
-                  inherit pkgs version;
-                }
-            else
-              null;
+          # eachDefaultSystem covers exactly the platforms fnox-binary.nix supports,
+          # so the platform guard in flake.nix is redundant. The derivation itself
+          # handles unknown platforms by returning null.
+          fnoxBinary = import ./pkgs/fnox-binary.nix { inherit pkgs version; };
 
           # Strategy: source-first for reproducibility.
           # packages.default and packages.fnox always use the source build so that
@@ -153,7 +144,7 @@
           checks =
             checks
             // {
-              nix-fmt = pkgs.runCommand "nix-fmt-check" { buildInputs = [ pkgs.nixpkgs-fmt ]; } ''
+              nix-fmt = pkgs.runCommand "nix-fmt-check" { nativeBuildInputs = [ pkgs.nixpkgs-fmt ]; } ''
                 nixpkgs-fmt --check ${self}
                 touch $out
               '';
