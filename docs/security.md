@@ -90,6 +90,37 @@ When `seedSecretSources` is configured, the seed script runs once per
    available" and the next source is tried. No error is printed; only a warning
    is logged for unreadable files.
 
+5. **Multiline sources are skipped with a warning.** If a source file contains
+   more than one line, the seed script emits a warning and tries the next
+   source. Real tokens and API keys are always single-line; a file with
+   multiple lines almost certainly contains an error message (e.g. a SOPS or
+   decrypt failure) rather than a usable secret. Seeding a junk value into
+   fnox would silently break every wrapped command that depends on it — the
+   multiline check catches this before `fnox set` is ever called.
+
+### Handling corrupted token files
+
+Some systems produce token files that contain error messages rather than
+tokens. A common example is a file written by a failed SOPS decryption:
+
+```
+Error: SOPS decryption failed
+could not find a valid key
+```
+
+If such a file exists at a `seedSecretSources` path, the seed script will:
+
+1. Skip it (because the content is multiline) and log a warning.
+2. Try any remaining sources for the same secret.
+3. Leave the secret unseeded if no valid source is found.
+
+The wrapped command will then fail at runtime when it attempts `fnox get`.
+This is the correct behaviour: a junk value in fnox would silently break all
+downstream consumers, while an unseeded value produces a clear error at the
+point of use.
+
+To recover, fix or remove the corrupted file and re-run `home-manager switch`.
+
 ## Minimal-Environment Assumptions
 
 The generated scripts make these assumptions about the runtime environment:

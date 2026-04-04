@@ -162,6 +162,16 @@ rec {
           return 2
         fi
 
+        # Reject multiline content — real tokens are always single-line.
+        # A file with multiple lines almost certainly contains an error message
+        # (e.g. a failed SOPS decrypt) rather than a usable secret.
+        # $(cat) strips trailing newlines, so a single-line file yields
+        # exactly 1 line when passed through printf+wc.
+        if [ "$(printf '%s\n' "$value" | wc -l)" -gt 1 ]; then
+          echo "Warning: fnox seed source '$file' for '$name' contains multiple lines; skipping (may contain an error message rather than a secret)" >&2
+          return 2
+        fi
+
         set_output=""
         if ! set_output=$("$FNOX_BIN" -c "$FNOX_CONFIG" set "$name" "$value" 2>&1); then
           echo "Error: failed to seed fnox secret '$name' from '$file'" >&2

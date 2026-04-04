@@ -230,4 +230,58 @@ in
       ${seedScript}
       touch "$out"
     '';
+
+  # A source file with multiline content must be skipped (not seeded).
+  # Multiline content is treated as invalid — real tokens are single-line,
+  # and error messages from failed decryption tools (e.g. SOPS) are multiline.
+  seed-skips-multiline-source =
+    let
+      # Simulates a token file that contains a SOPS/decrypt failure message.
+      badSourceFile = pkgs.writeText "mock-bad-secret-source" ''
+        Error: SOPS decryption failed
+        could not find a valid key
+      '';
+      seedScript = pkgs.writeShellScript "test-seed-multiline" (
+        fnoxLib.mkSeedSecretsScript {
+          # fnoxSetFails would catch if set is ever attempted — but the
+          # multiline guard should prevent set from being called at all.
+          fnoxPackage = fnoxSetFails;
+          secretSources = {
+            TEST_KEY = [ "${badSourceFile}" ];
+          };
+        }
+      );
+    in
+    pkgs.runCommand "seed-skips-multiline-source" sandboxEnv ''
+      # Must exit 0 (skip, not fatal) even though set would fail if called.
+      ${seedScript}
+      touch "$out"
+    '';
+
+  # Multiline source must be skipped in favour of a later valid single-line source.
+  seed-falls-through-to-next-source-after-multiline =
+    let
+      badSourceFile = pkgs.writeText "mock-bad-secret-source" ''
+        Error: something went wrong
+        check your config
+      '';
+      goodSourceFile = pkgs.writeText "mock-good-secret-source" "ghp_validtoken";
+      seedScript = pkgs.writeShellScript "test-seed-fallthrough" (
+        fnoxLib.mkSeedSecretsScript {
+          # get fails (not seeded), set succeeds
+          fnoxPackage = fnoxGetFails;
+          secretSources = {
+            TEST_KEY = [
+              "${badSourceFile}"
+              "${goodSourceFile}"
+            ];
+          };
+        }
+      );
+    in
+    pkgs.runCommand "seed-falls-through-to-next-source-after-multiline" sandboxEnv ''
+      # The bad (multiline) file must be skipped and the good file must seed successfully.
+      ${seedScript}
+      touch "$out"
+    '';
 }
