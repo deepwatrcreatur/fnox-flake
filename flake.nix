@@ -118,6 +118,21 @@
           }
           // import ./checks/wrapper-tests.nix {
             inherit pkgs fnoxLib;
+          }
+          // {
+            # Validate that the custom-wrapped-command example evaluates and builds.
+            example-custom-wrapped-command =
+              let
+                exampleDrv = import ./examples/custom-wrapped-command.nix {
+                  inherit pkgs fnoxLib;
+                  fnoxPackage = fnoxFromSource;
+                };
+              in
+              pkgs.runCommand "example-custom-wrapped-command-check" { } ''
+                test -x ${exampleDrv}/bin/curl-with-api-key
+                grep -q 'MY_API_KEY' ${exampleDrv}/bin/curl-with-api-key
+                touch $out
+              '';
           };
 
           devShell = pkgs.mkShell {
