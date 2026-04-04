@@ -127,3 +127,67 @@ Task:
 Deliver:
 - branch commit(s)
 - summary of simplifications made
+
+## Prompt 15: Shellcheck Generated Scripts
+
+Work on [`15-shellcheck-generated-scripts.md`](./15-shellcheck-generated-scripts.md).
+
+Create a branch named `chore/fnox-shellcheck`.
+
+Task:
+- add shellcheck to `devShells.default`
+- add one or more `nix flake check` entries that run shellcheck on
+  representative generated wrapper/seed scripts
+- fix any shellcheck findings in `lib/default.nix`
+
+Deliver:
+- branch commit(s)
+- list of findings fixed and the check that now enforces shellcheck going forward
+
+## Prompt 16: Extended Wrapper And Seed Tests
+
+Work on [`16-extended-wrapper-and-seed-tests.md`](./16-extended-wrapper-and-seed-tests.md).
+
+Create a branch named `test/fnox-extended-wrapper-seed-tests`.
+
+Task:
+- add a test for a wrapper that loads multiple secrets simultaneously
+- add a test that verifies `extraWrapperScript` runs before `exec`
+- update `seed-skips-already-seeded` to use a `set`-fails mock so it proves
+  `set` is never called when a secret is already seeded
+- add a test for a whitespace-only seed source file (should be skipped)
+
+Deliver:
+- branch commit(s)
+- summary of new invariants proven by the added tests
+
+## Prompt 17: Home Manager Module Usability
+
+Work on [`17-home-manager-module-usability.md`](./17-home-manager-module-usability.md).
+
+Create a branch named `feat/fnox-hm-module-usability`.
+
+Task:
+- default `fnoxPath` to `config.envVar` in the `secrets` submodule so users
+  don't need to repeat themselves when the two values are the same
+- improve all three existing assertion messages to include the field name and
+  a one-line fix hint
+
+Deliver:
+- branch commit(s)
+- before/after examples showing the simplified module syntax
+
+## Prompt 18: Troubleshooting Guide
+
+Work on [`18-troubleshooting-guide.md`](./18-troubleshooting-guide.md).
+
+Create a branch named `docs/fnox-troubleshooting`.
+
+Task:
+- write `docs/troubleshooting.md` covering the failure modes listed in the
+  work-item file
+- add a link to it from `README.md`
+
+Deliver:
+- branch commit(s)
+- list of failure modes documented
