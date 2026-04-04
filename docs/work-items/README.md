@@ -41,13 +41,15 @@ Highest value first:
 
 1. `01-centralize-version-and-release-bump-docs.md`
 2. `02-wrapper-runtime-tests.md`
-3. `03-default-package-selection-strategy.md`
-4. `04-home-manager-validation.md`
-5. `05-shell-safety-and-portability.md`
-6. `06-security-model-and-ops-docs.md`
-7. `07-example-templates.md`
-8. `08-metadata-and-quality-gates.md`
-9. `09-flake-complexity-cleanup.md`
+3. `10-bad-secret-file-handling.md`
+4. `11-wrapper-first-token-migration.md`
+5. `03-default-package-selection-strategy.md`
+6. `04-home-manager-validation.md`
+7. `05-shell-safety-and-portability.md`
+8. `06-security-model-and-ops-docs.md`
+9. `07-example-templates.md`
+10. `08-metadata-and-quality-gates.md`
+11. `09-flake-complexity-cleanup.md`
 
 ## Source
 
