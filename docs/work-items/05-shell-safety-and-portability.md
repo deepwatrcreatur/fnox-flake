@@ -1,4 +1,4 @@
-Status: `ready`
+Status: `done`
 Suggested branch: `fix/fnox-shell-safety`
 Priority: `medium`
 
