@@ -1,4 +1,4 @@
-Status: `ready`
+Status: `done`
 Suggested branch: `feat/fnox-home-manager-validation`
 Priority: `medium`
 
