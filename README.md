@@ -7,7 +7,7 @@
 - `packages.<system>.default`, `packages.<system>.fnox`: source-built `fnox` — reproducible, identical on all platforms
 - `packages.<system>.fnox-binary`: upstream pre-built binary (x86\_64-linux, aarch64-linux, x86\_64-darwin, aarch64-darwin) — opt-in for faster installs
 - `packages.<system>.fnox-from-source`: explicit alias for the source build
-- `packages.<system>.gh-fnox`, `bw-fnox`, `opencode-zai`: wrapped commands that load only the secrets they need
+- `packages.<system>.gh-fnox`, `bw-fnox`, `opencode-zai`, `claude-fnox`, `gemini-fnox`: wrapped commands that load only the secrets they need (see [docs/wrapper-catalog.md](docs/wrapper-catalog.md))
 - `apps.<system>.*`: `nix run` entrypoints for the packages above
 - `lib.<system>`:
   - `mkSecretSpec`
