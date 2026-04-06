@@ -230,9 +230,10 @@ rec {
         ];
       };
     })
-    // (lib.optionalAttrs (pkgs ? claude-code) {
+    // (lib.optionalAttrs ((pkgs ? claude-code) && (pkgs.config.allowUnfree or false)) {
       # Wraps the Anthropic Claude Code CLI with ANTHROPIC_API_KEY injected
-      # from fnox. The binary name inside the package is `claude`.
+      # from fnox when unfree packages are allowed. The binary name inside the
+      # package is `claude`.
       claude-fnox = {
         command = pkgs.claude-code;
         binaryName = "claude";

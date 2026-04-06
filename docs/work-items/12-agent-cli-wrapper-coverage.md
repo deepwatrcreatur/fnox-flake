@@ -27,6 +27,8 @@ Today the downstream policy is ahead of the reusable `fnox` support surface.
 - audit whether each target CLI already has enough stable invocation shape to
   justify a wrapper
 - add wrapper support for the commands that clearly benefit from `fnox`
+- keep unfree-backed wrappers opt-in so default CI does not fail on package
+  policy
 - document any commands intentionally deferred because their CLI surface is too
   unstable or their auth model does not fit the current wrapper pattern
 - keep wrapper names and env-var behavior predictable for downstream repos
