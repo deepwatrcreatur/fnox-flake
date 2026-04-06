@@ -107,6 +107,18 @@
               touch $out
             '';
           }
+          // pkgs.lib.optionalAttrs (wrappedCommands ? claude-fnox) {
+            claude-fnox-wrapper-script = pkgs.runCommand "claude-fnox-wrapper-check" { } ''
+              grep -q 'ANTHROPIC_API_KEY' ${wrappedCommands.claude-fnox}/bin/claude-fnox
+              touch $out
+            '';
+          }
+          // pkgs.lib.optionalAttrs (wrappedCommands ? gemini-fnox) {
+            gemini-fnox-wrapper-script = pkgs.runCommand "gemini-fnox-wrapper-check" { } ''
+              grep -q 'GEMINI_API_KEY' ${wrappedCommands.gemini-fnox}/bin/gemini-fnox
+              touch $out
+            '';
+          }
           // import ./checks/wrapper-tests.nix {
             inherit pkgs fnoxLib;
           }

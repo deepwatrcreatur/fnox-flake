@@ -14,6 +14,7 @@ let
     ANTHROPIC_API_KEY.description = "Anthropic API key";
     ATTIC_CLIENT_JWT_TOKEN.description = "Attic client JWT token";
     BW_SESSION.description = "Bitwarden session key";
+    GEMINI_API_KEY.description = "Google Gemini API key";
     GITHUB_TOKEN.description = "GitHub personal access token";
     GROK_API_KEY.description = "XAI Grok API key";
     OPENROUTER_API_KEY.description = "OpenRouter API key";
@@ -225,6 +226,32 @@ rec {
         secrets = [
           (mkSecretSpec {
             envVar = "BW_SESSION";
+          })
+        ];
+      };
+    })
+    // (lib.optionalAttrs ((pkgs ? claude-code) && (pkgs.config.allowUnfree or false)) {
+      # Wraps the Anthropic Claude Code CLI with ANTHROPIC_API_KEY injected
+      # from fnox when unfree packages are allowed. The binary name inside the
+      # package is `claude`.
+      claude-fnox = {
+        command = pkgs.claude-code;
+        binaryName = "claude";
+        secrets = [
+          (mkSecretSpec {
+            envVar = "ANTHROPIC_API_KEY";
+          })
+        ];
+      };
+    })
+    // (lib.optionalAttrs (pkgs ? gemini-cli) {
+      # Wraps the Google Gemini CLI with GEMINI_API_KEY injected from fnox.
+      gemini-fnox = {
+        command = pkgs.gemini-cli;
+        binaryName = "gemini";
+        secrets = [
+          (mkSecretSpec {
+            envVar = "GEMINI_API_KEY";
           })
         ];
       };
