@@ -185,6 +185,12 @@ nix flake show
 
 The dev shell contains the Rust toolchain and packaging dependencies needed to maintain the fnox package build.
 
+## Documentation
+
+- [Security and Operations Notes](docs/security.md) — Trust model, precedence rules, and secret handling.
+- [Wrapper-First Token Migration](docs/wrapper-first-migration.md) — How to stop exporting tokens in your shell profile.
+- [Troubleshooting Guide](docs/troubleshooting.md) — Recovery steps for common runtime errors.
+
 ## Agent Work Queue
 
 If you are assigning or running coding agents, start here:

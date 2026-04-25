@@ -49,11 +49,26 @@ let
     exit 0
   '';
 
+  # fnox where 'get' succeeds and returns a known value; 'set' FAILS
+  # Useful to prove that 'set' is never called on already-seeded secrets.
+  fnoxSetFailsOnAlreadySeeded = pkgs.writeShellScriptBin "fnox" ''
+    while [ "$#" -gt 0 ]; do
+      case "$1" in
+        get) echo "mock-secret-value"; exit 0 ;;
+        set) echo "FAIL: mock-fnox set called on already-seeded secret" >&2; exit 1 ;;
+        -c) shift 2 ;;
+        *) shift ;;
+      esac
+    done
+    exit 0
+  '';
+
   # ---------------------------------------------------------------------------
   # Shared helpers
   # ---------------------------------------------------------------------------
 
   testSecret = fnoxLib.mkSecretSpec { envVar = "TEST_SECRET"; };
+  testSecret2 = fnoxLib.mkSecretSpec { envVar = "TEST_SECRET2"; };
 
   # Fake wrapped command that verifies TEST_SECRET is set to the expected value
   fakeCommandChecksEnv = pkgs.writeShellScriptBin "fake-cmd" ''
@@ -61,6 +76,14 @@ let
       exit 0
     fi
     echo "FAIL: expected TEST_SECRET=mock-secret-value, got: $TEST_SECRET" >&2
+    exit 1
+  '';
+
+  fakeCommandChecksMultiEnv = pkgs.writeShellScriptBin "fake-multi-cmd" ''
+    if [ "$TEST_SECRET" = "mock-secret-value" ] && [ "$TEST_SECRET2" = "mock-secret-value" ]; then
+      exit 0
+    fi
+    echo "FAIL: expected multi-env mismatch. TEST_SECRET=$TEST_SECRET, TEST_SECRET2=$TEST_SECRET2" >&2
     exit 1
   '';
 
@@ -127,6 +150,48 @@ in
     in
     pkgs.runCommand "wrapper-no-secrets-executes-command" sandboxEnv ''
       ${wrapper}/bin/test-wrapper-no-secrets
+      touch "$out"
+    '';
+
+  # Wrapper must support loading multiple secrets
+  wrapper-exports-multiple-secrets =
+    let
+      wrapper = fnoxLib.mkWrappedCommand {
+        name = "test-wrapper-multi";
+        command = fakeCommandChecksMultiEnv;
+        binaryName = "fake-multi-cmd";
+        fnoxPackage = fnoxGetSucceeds;
+        secrets = [ testSecret testSecret2 ];
+      };
+    in
+    pkgs.runCommand "wrapper-exports-multiple-secrets" sandboxEnv ''
+      ${wrapper}/bin/test-wrapper-multi
+      touch "$out"
+    '';
+
+  # Wrapper must execute extraWrapperScript between decryption and exec
+  wrapper-executes-extra-script =
+    let
+      wrapper = fnoxLib.mkWrappedCommand {
+        name = "test-wrapper-extra";
+        command = fakeCommandOk;
+        binaryName = "fake-cmd";
+        fnoxPackage = fnoxGetSucceeds;
+        secrets = [ testSecret ];
+        extraWrapperScript = ''
+          if [ "$TEST_SECRET" != "mock-secret-value" ]; then
+            echo "FAIL: extraWrapperScript ran before secret export" >&2
+            exit 1
+          fi
+          export EXTRA_VAR="verified"
+        '';
+      };
+    in
+    pkgs.runCommand "wrapper-executes-extra-script" sandboxEnv ''
+      # Check that the wrapper exits 0 and actually sets the extra var
+      # (we wrap it in another script to check the child's side effects if possible,
+      # but here we just check it runs without error).
+      ${wrapper}/bin/test-wrapper-extra
       touch "$out"
     '';
 
@@ -218,8 +283,8 @@ in
       sourceFile = pkgs.writeText "mock-secret-source" "my-test-secret-value";
       seedScript = pkgs.writeShellScript "test-seed-already-seeded" (
         fnoxLib.mkSeedSecretsScript {
-          # get succeeds → already seeded → set should never be called
-          fnoxPackage = fnoxGetSucceeds;
+          # Use mock that fails on set to prove it's never called
+          fnoxPackage = fnoxSetFailsOnAlreadySeeded;
           secretSources = {
             TEST_KEY = [ "${sourceFile}" ];
           };
@@ -227,6 +292,24 @@ in
       );
     in
     pkgs.runCommand "seed-skips-already-seeded" sandboxEnv ''
+      ${seedScript}
+      touch "$out"
+    '';
+
+  # A source file containing only whitespace must be treated as empty and skipped
+  seed-skips-whitespace-only-source =
+    let
+      sourceFile = pkgs.writeText "mock-whitespace-source" "   \n  \t  ";
+      seedScript = pkgs.writeShellScript "test-seed-whitespace" (
+        fnoxLib.mkSeedSecretsScript {
+          fnoxPackage = fnoxGetFails;
+          secretSources = {
+            TEST_KEY = [ "${sourceFile}" ];
+          };
+        }
+      );
+    in
+    pkgs.runCommand "seed-skips-whitespace-only-source" sandboxEnv ''
       ${seedScript}
       touch "$out"
     '';

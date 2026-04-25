@@ -39,13 +39,15 @@ This folder is the agent-facing queue for `fnox-flake`.
 
 Highest value first:
 
-1. `12-agent-cli-wrapper-coverage.md`
+0. `10-bad-secret-file-handling.md` - done
+1. `11-wrapper-first-token-migration.md` - done
+2. `12-agent-cli-wrapper-coverage.md`
 2. `13-api-and-proxmox-helper-wrappers.md`
 3. `14-wrapper-catalog-and-support-boundary.md`
 4. `15-shellcheck-generated-scripts.md`
-5. `16-extended-wrapper-and-seed-tests.md`
-6. `17-home-manager-module-usability.md`
-7. `18-troubleshooting-guide.md`
+5. `16-extended-wrapper-and-seed-tests.md` - done
+6. `17-home-manager-module-usability.md` - done
+7. `18-troubleshooting-guide.md` - done
 
 ## Source
 

@@ -1,4 +1,4 @@
-Status: `ready`
+Status: `done`
 Suggested branch: `test/fnox-extended-wrapper-seed-tests`
 Priority: `medium`
 

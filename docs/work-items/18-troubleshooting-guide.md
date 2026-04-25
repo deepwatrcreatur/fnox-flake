@@ -1,4 +1,4 @@
-Status: `ready`
+Status: `done`
 Suggested branch: `docs/fnox-troubleshooting`
 Priority: `low`
 

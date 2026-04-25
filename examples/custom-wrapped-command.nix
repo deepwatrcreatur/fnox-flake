@@ -37,12 +37,11 @@ fnoxLib.mkWrappedCommand {
   inherit fnoxPackage;
 
   # Secrets to decrypt and export before running the wrapped command.
-  # envVar  — the environment variable name the wrapped program reads.
-  # fnoxPath — the key name in the fnox secret store / config.
+  # envVar — the environment variable name the wrapped program reads.
+  # If fnoxPath is omitted, it defaults to the value of envVar.
   secrets = [
     (fnoxLib.mkSecretSpec {
       envVar = "MY_API_KEY";
-      fnoxPath = "MY_API_KEY";
     })
   ];
 

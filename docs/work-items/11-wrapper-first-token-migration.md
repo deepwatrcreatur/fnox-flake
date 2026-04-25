@@ -1,6 +1,6 @@
 # 11 Wrapper First Token Migration
 
-Status: `ready`
+Status: `done`
 
 Suggested branch: `docs/fnox-wrapper-first-migration`
 

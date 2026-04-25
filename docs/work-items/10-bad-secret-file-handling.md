@@ -1,6 +1,6 @@
 # 10 Bad Secret File Handling
 
-Status: `ready`
+Status: `done`
 
 Suggested branch: `fix/fnox-bad-secret-file-handling`
 

@@ -84,10 +84,14 @@ in
               options = {
                 envVar = lib.mkOption {
                   type = lib.types.str;
+                  description = "Environment variable name to export the secret into.";
                 };
 
                 fnoxPath = lib.mkOption {
                   type = lib.types.str;
+                  default = config.envVar;
+                  defaultText = lib.literalExpression "config.envVar";
+                  description = "Path/name of the secret in fnox. Defaults to envVar if omitted.";
                 };
               };
             });
@@ -110,15 +114,18 @@ in
       [
         {
           assertion = cfg.package != null;
-          message = "programs.fnox.enable requires programs.fnox.package or pkgs.fnox to be available.";
+          message = ''
+            programs.fnox.enable: No package found for fnox.
+            Set programs.fnox.package explicitly or apply the fnox overlay to provide pkgs.fnox.
+          '';
         }
         {
           # An empty recipients list means fnox will generate a config with no
           # age recipients, making it impossible to encrypt any secrets.
           assertion = cfg.recipients != [ ];
           message = ''
-            programs.fnox.recipients is empty. Provide at least one age public key so
-            fnox can encrypt secrets (e.g. programs.fnox.recipients = [ "age1..." ];).
+            programs.fnox.recipients: At least one recipient is required.
+            Provide at least one age public key so fnox can encrypt secrets (e.g. programs.fnox.recipients = [ "age1..." ];).
           '';
         }
       ]
@@ -135,7 +142,7 @@ in
                   # Two secrets in the same wrapper exporting to the same env var
                   # means the first value is silently overwritten.
                   assertion = duplicateEnvVars == [ ];
-                  message = "programs.fnox.wrappedCommands.${name}: duplicate envVar(s): ${lib.concatStringsSep ", " duplicateEnvVars}. Each secret must export to a unique environment variable.";
+                  message = "programs.fnox.wrappedCommands.${name}: Duplicate envVar(s): ${lib.concatStringsSep ", " duplicateEnvVars}. Each secret must export to a unique environment variable name.";
                 }
               ]
               ++ map
@@ -143,7 +150,10 @@ in
                   # A fnoxPath that isn't in secretDefinitions will cause fnox to fail
                   # at runtime with a confusing "secret not found" error.
                   assertion = lib.hasAttr secret.fnoxPath cfg.secretDefinitions;
-                  message = "programs.fnox.wrappedCommands.${name}: fnoxPath '${secret.fnoxPath}' is not declared in programs.fnox.secretDefinitions. Add it to secretDefinitions or correct the fnoxPath.";
+                  message = ''
+                    programs.fnox.wrappedCommands.${name}: Referenced secret '${secret.fnoxPath}' is not defined.
+                    Add '${secret.fnoxPath}' to programs.fnox.secretDefinitions or correct the fnoxPath.
+                  '';
                 })
                 spec.secrets
           )
