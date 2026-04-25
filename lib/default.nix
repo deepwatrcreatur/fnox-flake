@@ -45,6 +45,7 @@ rec {
     ,
     }:
     pkgs.writeShellScriptBin name ''
+      # shellcheck shell=bash
       set -euo pipefail
 
       FNOX_BIN="${fnoxPackage}/bin/fnox"
@@ -122,6 +123,7 @@ rec {
               if seed_secret ${lib.escapeShellArg name} "$source"; then
                 break
               else
+                # shellcheck disable=SC2181
                 status=$?
                 if [ "$status" -eq 1 ]; then
                   exit 1
@@ -132,6 +134,7 @@ rec {
         '';
     in
     ''
+      # shellcheck shell=bash
       FNOX_BIN="${fnoxPackage}/bin/fnox"
       export FNOX_AGE_KEY_FILE="''${FNOX_AGE_KEY_FILE:-$HOME/.config/sops/age/keys.txt}"
       export FNOX_CONFIG="''${FNOX_CONFIG:-$HOME/.config/fnox/config.toml}"

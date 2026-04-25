@@ -1,4 +1,4 @@
-Status: `ready`
+Status: `in-progress`
 Suggested branch: `chore/fnox-shellcheck`
 Priority: `medium`
 
