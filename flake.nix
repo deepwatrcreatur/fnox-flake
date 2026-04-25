@@ -147,6 +147,7 @@
               pkg-config
               rustc
               rustfmt
+              shellcheck
             ];
           };
         in
@@ -158,6 +159,25 @@
             // {
               nix-fmt = pkgs.runCommand "nix-fmt-check" { nativeBuildInputs = [ pkgs.nixpkgs-fmt ]; } ''
                 nixpkgs-fmt --check ${self}
+                touch $out
+              '';
+
+              shellcheck = pkgs.runCommand "shellcheck-check" { nativeBuildInputs = [ pkgs.shellcheck ]; } ''
+                echo "Checking gh-fnox wrapper script..."
+                shellcheck ${wrappedCommands.gh-fnox}/bin/gh-fnox
+
+                echo "Checking mkSeedSecretsScript output..."
+                # Extract the script from the generated check command
+                cat > seed-script.sh <<'EOF'
+                ${fnoxLib.mkSeedSecretsScript {
+                  inherit fnoxPackage;
+                  secretSources = {
+                    TEST_TOKEN = ["/tmp/token1" "/tmp/token2"];
+                  };
+                }}
+                EOF
+                shellcheck seed-script.sh
+
                 touch $out
               '';
             };

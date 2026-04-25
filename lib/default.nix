@@ -44,6 +44,9 @@ rec {
     , extraWrapperScript ? ""
     ,
     }:
+    # Note: All generated shell code in this module must pass shellcheck
+    # (enforced by `nix flake check`). Use `shellcheck shell=bash` and
+    # relevant disable annotations where needed.
     pkgs.writeShellScriptBin name ''
       # shellcheck shell=bash
       set -euo pipefail

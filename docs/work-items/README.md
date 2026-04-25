@@ -42,7 +42,7 @@ Highest value first:
 1. `12-agent-cli-wrapper-coverage.md`
 2. `13-api-and-proxmox-helper-wrappers.md`
 3. `14-wrapper-catalog-and-support-boundary.md`
-4. `15-shellcheck-generated-scripts.md`
+4. `15-shellcheck-generated-scripts.md` - done
 5. `16-extended-wrapper-and-seed-tests.md`
 6. `17-home-manager-module-usability.md`
 7. `18-troubleshooting-guide.md`
