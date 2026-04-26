@@ -1,8 +1,17 @@
 # 12 Agent CLI Wrapper Coverage
 
-Status: `ready`
+Status: `done`
 
 Suggested branch: `feat/fnox-agent-cli-wrappers`
+
+## Progress
+
+- **gh-fnox**: Wraps GitHub CLI with `GITHUB_TOKEN` and `GH_TOKEN`.
+- **bw-fnox**: Wraps Bitwarden CLI with `BW_SESSION`.
+- **claude-fnox**: Wraps Claude Code with `ANTHROPIC_API_KEY` (gated on `allowUnfree`).
+- **gemini-fnox**: Wraps Gemini CLI with `GEMINI_API_KEY`.
+- **droid-fnox**: Wraps Factory.ai `droid` CLI with `FACTORY_API_KEY`.
+- **opencode-zai**: Wraps `opencode` with `Z_AI_API_KEY` (aliased to `OPENAI_API_KEY`) and pre-configures z.ai provider/model.
 
 ## Goal
 

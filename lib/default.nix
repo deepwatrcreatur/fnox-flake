@@ -14,6 +14,7 @@ let
     ANTHROPIC_API_KEY.description = "Anthropic API key";
     ATTIC_CLIENT_JWT_TOKEN.description = "Attic client JWT token";
     BW_SESSION.description = "Bitwarden session key";
+    FACTORY_API_KEY.description = "Factory.ai API key";
     GEMINI_API_KEY.description = "Google Gemini API key";
     GITHUB_TOKEN.description = "GitHub personal access token";
     GROK_API_KEY.description = "XAI Grok API key";
@@ -255,6 +256,18 @@ rec {
         secrets = [
           (mkSecretSpec {
             envVar = "GEMINI_API_KEY";
+          })
+        ];
+      };
+    })
+    // (lib.optionalAttrs (pkgs ? factory-droid) {
+      # Wraps the Factory.ai droid CLI with FACTORY_API_KEY injected from fnox.
+      droid-fnox = {
+        command = pkgs.factory-droid;
+        binaryName = "droid";
+        secrets = [
+          (mkSecretSpec {
+            envVar = "FACTORY_API_KEY";
           })
         ];
       };

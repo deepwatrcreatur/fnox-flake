@@ -108,6 +108,23 @@ gemini-fnox
 
 ---
 
+### `droid-fnox`
+
+| Field | Value |
+|-------|-------|
+| Wraps | `pkgs.factory-droid` (Factory.ai Droid CLI) |
+| Binary | `droid` |
+| Secrets injected | `FACTORY_API_KEY` |
+| nixpkgs condition | `pkgs ? factory-droid` |
+
+Injects `FACTORY_API_KEY` for the Factory.ai Droid CLI.
+
+```bash
+droid-fnox
+```
+
+---
+
 ## Provisional and Experimental Wrappers
 
 None currently. New wrappers start in this section and are promoted to
@@ -134,11 +151,6 @@ your repo needs. See
 injection part is solved. The invocation patterns, however, vary too much
 between hosts to standardize here. Define a repo-local wrapper when the usage
 pattern is stable across enough machines to be worth sharing.
-
-### `droid`
-
-No stable nixpkgs package under this name with a clear env-var auth model at
-the time of writing. Revisit when a canonical package ships.
 
 ### Additional `opencode` provider variants
 
@@ -186,6 +198,7 @@ packages.x86_64-linux.bw-fnox     # always wraps pkgs.bitwarden-cli with BW_SESS
 packages.x86_64-linux.opencode-zai # always wraps pkgs.opencode with Z_AI_API_KEY
 packages.x86_64-linux.claude-fnox  # always wraps pkgs.claude-code with ANTHROPIC_API_KEY
 packages.x86_64-linux.gemini-fnox  # always wraps pkgs.gemini-cli with GEMINI_API_KEY
+packages.x86_64-linux.droid-fnox   # always wraps pkgs.factory-droid with FACTORY_API_KEY
 ```
 
 The wrapper is absent (not null, absent) if the underlying package is not in
