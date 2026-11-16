@@ -7,8 +7,10 @@ helpers for secret-backed CLI commands, and provides a Home Manager module.
   `overlays.default`, `homeManagerModules.default`, `apps`, `checks`.
 - Validate: `nix flake check` (includes `checks/wrapper-tests.nix`), then
   `nix build .#fnox`, then run `result/bin/fnox`.
-- Rust package: when bumping `version`, update both the source `hash` and
-  `cargoHash`.
+- Version bumps: update the source `hash` and `cargoHash`, and every
+  per-platform `sha256` in `pkgs/fnox-binary.nix` (release steps in the
+  README). `nix flake check` does not build `fnox-binary`, so build it
+  (`nix build .#fnox-binary`) to catch a stale hash.
 - Security model for wrappers: `docs/security.md`. Planned work:
   `docs/work-items/`.
 - Published to FlakeHub by `.github/workflows/flakehub-publish.yml`.
@@ -30,11 +32,12 @@ Summary (offline fallback):
   three lines above the code they protect; longer reasoning goes in `docs/`
   with a pointer (`# WHY: docs/x.md#heading`). Never narrate the next line.
 - **Before editing a file**, read its tags:
-  `rg -n '# (WHY|GOTCHA|INVARIANT|SECURITY|UPSTREAM|TODO)' <file>`.
+  `grep -nE '# (WHY|GOTCHA|INVARIANT|SECURITY|UPSTREAM|TODO)' <file>`.
   Fix or delete any tag your change makes untrue.
 - **Exported Nix functions** get RFC 145 doc comments (`/** ... */`).
-- **Validate before committing:** the narrowest `nix build` first, then
-  `nix flake check`; read all output. Run `bash -n`/`shellcheck` on shell
+- **Validate before committing:** build the narrowest affected output
+  first (when the flake has packages), then `nix flake check`; read all
+  output. Run `bash -n`/`shellcheck` on shell
   generated from Nix. Exit code 0 is not proof the change worked.
 - **Same change, same PR:** behaviour changes come with docs and a check.
 - **Never commit secrets**, and do not deploy to or change live hosts unless
