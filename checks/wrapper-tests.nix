@@ -36,6 +36,68 @@ let
     exit 0
   '';
 
+  # fnox where 'get' returns a stale placeholder ("age") and 'set' records the
+  # value it receives on stdin into $FNOX_TEST_SET_LOG.
+  fnoxGetStale = pkgs.writeShellScriptBin "fnox" ''
+    while [ "$#" -gt 0 ]; do
+      case "$1" in
+        get) echo "age"; exit 0 ;;
+        set)
+          shift
+          if [ "$#" -gt 1 ]; then echo "mock: value passed on argv" >&2; exit 1; fi
+          cat > "$FNOX_TEST_SET_LOG"
+          exit 0 ;;
+        -c) shift 2 ;;
+        *) shift ;;
+      esac
+    done
+    exit 0
+  '';
+
+  # fnox where 'get' only sees the environment (nothing stored) and 'set'
+  # records the value it receives on stdin into $FNOX_TEST_SET_LOG.
+  fnoxEnvOnly = pkgs.writeShellScriptBin "fnox" ''
+    while [ "$#" -gt 0 ]; do
+      case "$1" in
+        get)
+          if [ -n "''${TEST_KEY:-}" ]; then echo "$TEST_KEY"; exit 0; fi
+          exit 1 ;;
+        set) cat > "$FNOX_TEST_SET_LOG"; exit 0 ;;
+        -c) shift 2 ;;
+        *) shift ;;
+      esac
+    done
+    exit 0
+  '';
+
+  # fnox 1.19 behaviour for a missing secret: 'get' exits 0 with no output
+  # unless --if-missing error is given.
+  fnoxMissingLenient = pkgs.writeShellScriptBin "fnox" ''
+    strict=0
+    for a in "$@"; do [ "$a" = "error" ] && strict=1; done
+    for a in "$@"; do
+      if [ "$a" = "get" ]; then
+        echo "warning: secret not found" >&2
+        [ "$strict" = 1 ] && exit 1
+        exit 0
+      fi
+    done
+    exit 0
+  '';
+
+  # fnox where 'get' returns mock-secret-value and 'set' must never be called.
+  fnoxGetSameSetForbidden = pkgs.writeShellScriptBin "fnox" ''
+    while [ "$#" -gt 0 ]; do
+      case "$1" in
+        get) echo "mock-secret-value"; exit 0 ;;
+        set) echo "mock: set must not be called when the value is unchanged" >&2; exit 1 ;;
+        -c) shift 2 ;;
+        *) shift ;;
+      esac
+    done
+    exit 0
+  '';
+
   # fnox where 'get' fails (not yet seeded) and 'set' also fails (e.g. bad config)
   fnoxSetFails = pkgs.writeShellScriptBin "fnox" ''
     while [ "$#" -gt 0 ]; do
@@ -215,11 +277,11 @@ in
   # Already-seeded secret (get succeeds) must be skipped without calling set
   seed-skips-already-seeded =
     let
-      sourceFile = pkgs.writeText "mock-secret-source" "my-test-secret-value";
+      sourceFile = pkgs.writeText "mock-same-secret-source" "mock-secret-value";
       seedScript = pkgs.writeShellScript "test-seed-already-seeded" (
         fnoxLib.mkSeedSecretsScript {
-          # get succeeds → already seeded → set should never be called
-          fnoxPackage = fnoxGetSucceeds;
+          # get returns the same value as the source -> set must not run
+          fnoxPackage = fnoxGetSameSetForbidden;
           secretSources = {
             TEST_KEY = [ "${sourceFile}" ];
           };
@@ -228,6 +290,139 @@ in
     in
     pkgs.runCommand "seed-skips-already-seeded" sandboxEnv ''
       ${seedScript}
+      touch "$out"
+    '';
+
+  # The legacy placeholder "age" (left by configs that rendered
+  # `default = <provider>`) is not a stored value: seed it, via stdin.
+  seed-replaces-legacy-placeholder =
+    let
+      sourceFile = pkgs.writeText "mock-new-secret-source" "ghp_rotatedtoken";
+      seedScript = pkgs.writeShellScript "test-seed-drift" (
+        fnoxLib.mkSeedSecretsScript {
+          fnoxPackage = fnoxGetStale;
+          secretSources = {
+            TEST_KEY = [ "${sourceFile}" ];
+          };
+        }
+      );
+    in
+    pkgs.runCommand "seed-replaces-legacy-placeholder" sandboxEnv ''
+      export FNOX_TEST_SET_LOG="$PWD/set.log"
+      ${seedScript}
+      test "$(cat "$FNOX_TEST_SET_LOG")" = "ghp_rotatedtoken"
+      touch "$out"
+    '';
+
+  # A value only in the environment is not stored: seeding must still run.
+  seed-ignores-env-fallback =
+    let
+      sourceFile = pkgs.writeText "mock-env-secret-source" "ghp_fromsource";
+      seedScript = pkgs.writeShellScript "test-seed-env" (
+        fnoxLib.mkSeedSecretsScript {
+          fnoxPackage = fnoxEnvOnly;
+          secretSources = {
+            TEST_KEY = [ "${sourceFile}" ];
+          };
+        }
+      );
+    in
+    pkgs.runCommand "seed-ignores-env-fallback" sandboxEnv ''
+      export FNOX_TEST_SET_LOG="$PWD/set.log"
+      export TEST_KEY=ghp_fromsource
+      ${seedScript}
+      test "$(cat "$FNOX_TEST_SET_LOG")" = "ghp_fromsource"
+      touch "$out"
+    '';
+
+  # A wrapper must refuse to run when a secret is missing, even though plain
+  # `fnox get` exits 0 for it.
+  wrapper-fails-on-missing-secret =
+    let
+      wrapper = fnoxLib.mkWrappedCommand {
+        name = "test-missing";
+        command = pkgs.coreutils;
+        binaryName = "true";
+        secrets = [ testSecret ];
+        fnoxPackage = fnoxMissingLenient;
+      };
+    in
+    pkgs.runCommand "wrapper-fails-on-missing-secret" sandboxEnv ''
+      if ${wrapper}/bin/test-missing; then
+        echo "wrapper ran despite a missing secret" >&2
+        exit 1
+      fi
+      touch "$out"
+    '';
+
+  # The merge keeps stored values and user entries, takes providers and
+  # declarations from the template, and drops the legacy `default` placeholder.
+  config-merge-keeps-values =
+    let
+      merge = fnoxLib.mkFnoxConfigMergeScript {
+        template = pkgs.writeText "tmpl.toml" (fnoxLib.mkFnoxConfigToml {
+          recipients = [ "age1new" ];
+          secrets = {
+            KEPT = { description = "kept"; };
+            LEGACY = { description = "legacy"; };
+            FRESH = { description = "fresh"; };
+          };
+        });
+      };
+      existing = pkgs.writeText "existing.toml" ''
+        [providers.age]
+        type = "age"
+        recipients = ["age1old"]
+
+        [secrets.KEPT]
+        provider = "age"
+        value = "c2VjcmV0"
+
+        [secrets.LEGACY]
+        default = "age"
+        description = "old"
+
+        [secrets.USER_ONLY]
+        provider = "age"
+        value = "dXNlcg=="
+      '';
+      check = pkgs.writers.writePython3 "check-merge" { } ''
+        import sys
+        import tomllib
+
+        with open(sys.argv[1], "rb") as f:
+            c = tomllib.load(f)
+        assert c["providers"]["age"]["recipients"] == ["age1new"], c
+        assert c["secrets"]["KEPT"]["value"] == "c2VjcmV0", c
+        assert "default" not in c["secrets"]["LEGACY"], c
+        assert c["secrets"]["LEGACY"]["provider"] == "age", c
+        assert "value" not in c["secrets"]["FRESH"], c
+        assert c["secrets"]["USER_ONLY"]["value"] == "dXNlcg==", c
+      '';
+    in
+    pkgs.runCommand "config-merge-keeps-values" sandboxEnv ''
+      cp ${existing} cfg.toml
+      chmod 644 cfg.toml
+      ${merge} cfg.toml
+      ${check} cfg.toml
+      test "$(stat -c %a cfg.toml)" = 600
+      touch "$out"
+    '';
+
+  # Declared secrets render with `provider`, never `default` (which fnox treats
+  # as the fallback value).
+  config-renders-provider-not-default =
+    let
+      toml = pkgs.writeText "fnox-config.toml" (fnoxLib.mkFnoxConfigToml {
+        recipients = [ "age1example" ];
+        secrets = {
+          TEST_KEY = { description = "test"; };
+        };
+      });
+    in
+    pkgs.runCommand "config-renders-provider-not-default" sandboxEnv ''
+      grep -q '^provider = "age"' ${toml}
+      ! grep -q '^default' ${toml}
       touch "$out"
     '';
 
