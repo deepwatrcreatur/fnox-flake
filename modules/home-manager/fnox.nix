@@ -157,18 +157,43 @@ in
 
     home.packages = [ cfg.package ] ++ wrappedPackages;
 
-    xdg.configFile.${cfg.configRelativePath}.text = fnoxLib.mkFnoxConfigToml {
-      recipients = cfg.recipients;
-      secrets = cfg.secretDefinitions;
-    };
+    # WHY: not xdg.configFile. A store symlink is read-only, so `fnox set`
+    # (seeding, or the user) could not write to it, and replacing it with a
+    # regular file made later activations collide with Home Manager's link.
+    # The generated settings are merged into a writable file instead, keeping
+    # stored values.
+    home.activation.fnoxConfig = lib.hm.dag.entryAfter [ "linkGeneration" ] ''
+      if [ -L ${lib.escapeShellArg configPath} ]; then
+        # A store link from an older version of this module.
+        tmp="$(mktemp)"
+        cat ${lib.escapeShellArg configPath} > "$tmp"
+        rm -f ${lib.escapeShellArg configPath}
+        install -m 600 "$tmp" ${lib.escapeShellArg configPath}
+        rm -f "$tmp"
+      fi
+      $DRY_RUN_CMD ${fnoxLib.mkFnoxConfigMergeScript {
+        template = pkgs.writeText "fnox-config-template.toml" (fnoxLib.mkFnoxConfigToml {
+          recipients = cfg.recipients;
+          secrets = cfg.secretDefinitions;
+        });
+      }} ${lib.escapeShellArg configPath}
+    '';
 
     home.activation.fnoxSeedSecrets = lib.mkIf (cfg.seedSecretSources != { }) (
-      lib.hm.dag.entryAfter [ "writeBoundary" ] (
-        fnoxLib.mkSeedSecretsScript {
+      lib.hm.dag.entryAfter [ "fnoxConfig" ] ''
+        FNOX_CONFIG=${lib.escapeShellArg configPath}
+        FNOX_AGE_KEY_FILE=${lib.escapeShellArg cfg.ageKeyFile}
+        export FNOX_CONFIG FNOX_AGE_KEY_FILE
+        # GOTCHA: the seed script uses `exit`; a subshell keeps that from ending
+        # the rest of the Home Manager activation, and a real failure still
+        # fails activation.
+        (
+        ${fnoxLib.mkSeedSecretsScript {
           fnoxPackage = cfg.package;
           secretSources = cfg.seedSecretSources;
-        }
-      )
+        }}
+        ) || exit $?
+      ''
     );
   };
 }

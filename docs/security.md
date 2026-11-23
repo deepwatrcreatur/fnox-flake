@@ -24,6 +24,27 @@ behaviour with secret values.
 - The machine is not shared with untrusted local users who could enumerate
   processes.
 
+## Config File
+
+The Home Manager module does not link the fnox config from the Nix store. A
+store link is read-only, so neither seeding nor the user could `fnox set`.
+Instead, activation (`fnoxConfig`, after `linkGeneration`) merges the
+generated settings into a writable `~/.config/fnox/config.toml` (mode 0600):
+
+- providers and secret declarations come from Nix;
+- stored values and entries the user added are kept;
+- a legacy `default = "<provider>"` placeholder is removed.
+
+A store link left by an older version of the module is replaced on the first
+activation.
+
+## Wrapped Commands And Missing Secrets
+
+Plain `fnox get` exits 0 with no output for a declared secret that has no
+value (fnox 1.19 warns instead of failing). Wrappers therefore call `fnox
+--if-missing error get`, so a missing secret stops the command instead of
+running it with an empty credential.
+
 ## Secret Value Handling
 
 ### Trailing newlines
@@ -72,9 +93,20 @@ secrets out-of-band using `fnox set` directly rather than relying on
 When `seedSecretSources` is configured, the seed script runs once per
 `home-manager switch`. Precedence rules:
 
-1. **Existing fnox value wins.** If `fnox get <name>` succeeds, the secret is
-   already in the store and the seed script moves on without overwriting it.
-   Seeding is intentionally idempotent.
+1. **Existing fnox value wins.** If the store holds a usable value for the
+   secret, the seed script moves on without overwriting it, even if the source
+   file now holds a different value. Seeding is intentionally idempotent; to
+   rotate a seeded secret, run `fnox set` (or remove it so the next activation
+   reseeds it). The check looks at the store alone: it runs `fnox
+   --if-missing error get` with the secret's environment variable unset,
+   because fnox falls back to that variable. These count as *not* seeded and
+   are filled from the source:
+   - a missing value;
+   - a value that cannot be decrypted (for example after the recipients
+     changed);
+   - the literal `age`, a placeholder older versions of this flake produced by
+     rendering `default = "<provider>"` (fnox reads `default` as the fallback
+     value).
 
 2. **First readable, non-empty source file wins.** Sources are tried in the
    order listed. As soon as one source is read and `fnox set` succeeds, the
@@ -90,7 +122,10 @@ When `seedSecretSources` is configured, the seed script runs once per
    available" and the next source is tried. No error is printed; only a warning
    is logged for unreadable files.
 
-5. **Multiline sources are skipped with a warning.** If a source file contains
+5. **Values go to `fnox set` on stdin**, never as an argument, so they do not
+   appear in `ps` output or process accounting.
+
+6. **Multiline sources are skipped with a warning.** If a source file contains
    more than one line, the seed script emits a warning and tries the next
    source. Real tokens and API keys are always single-line; a file with
    multiple lines almost certainly contains an error message (e.g. a SOPS or

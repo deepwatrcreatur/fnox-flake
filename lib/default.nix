@@ -61,7 +61,9 @@ rec {
         secret: ''
           value=""
           _fnox_err_file="$(mktemp)"
-          if ! value=$("$FNOX_BIN" -c "$FNOX_CONFIG_PATH" get "${secret.fnoxPath}" 2>"$_fnox_err_file"); then
+          # GOTCHA: without --if-missing error, fnox get exits 0 with an empty
+          # value for a missing secret and the command would run without it.
+          if ! value=$("$FNOX_BIN" -c "$FNOX_CONFIG_PATH" --if-missing error get "${secret.fnoxPath}" 2>"$_fnox_err_file"); then
             echo "Error: failed to decrypt '${secret.fnoxPath}' for ${secret.envVar}" >&2
             cat "$_fnox_err_file" >&2
             exit 1
@@ -110,6 +112,68 @@ rec {
         // extraConfig
       )
     );
+
+  /**
+    Script that merges a generated fnox config into the live, writable config.
+
+    Providers and secret declarations come from `template`; stored secret
+    values and extra user entries in the existing file are kept. A legacy
+    `default = "<provider>"` (an old rendering bug: fnox reads `default` as
+    the fallback value) is dropped. The target is written 0600 and replaces a
+    store symlink, so `fnox set` can update it.
+
+    # Arguments
+
+    - `template`: path to the generated config (from `mkFnoxConfigToml`).
+  */
+  mkFnoxConfigMergeScript =
+    { template }:
+    pkgs.writers.writePython3 "fnox-config-merge"
+      {
+        libraries = [ pkgs.python3Packages.tomli-w ];
+        flakeIgnore = [ "E501" ];
+      }
+      ''
+        import os
+        import sys
+        import tempfile
+        import tomllib
+
+        import tomli_w
+
+        target = sys.argv[1]
+        with open("${template}", "rb") as f:
+            tmpl = tomllib.load(f)
+        existing = {}
+        if os.path.exists(target):
+            with open(target, "rb") as f:
+                existing = tomllib.load(f)
+
+        merged = dict(existing)
+        providers = dict(existing.get("providers", {}))
+        providers.update(tmpl.get("providers", {}))
+        merged["providers"] = providers
+
+        secrets = dict(existing.get("secrets", {}))
+        for name, decl in tmpl.get("secrets", {}).items():
+            entry = dict(secrets.get(name, {}))
+            provider = entry.get("provider", decl.get("provider"))
+            if entry.get("default") in (decl.get("provider"), provider):
+                del entry["default"]
+            entry["provider"] = provider
+            if "description" in decl:
+                entry["description"] = decl["description"]
+            secrets[name] = entry
+        merged["secrets"] = secrets
+
+        directory = os.path.dirname(target) or "."
+        os.makedirs(directory, exist_ok=True)
+        fd, tmp = tempfile.mkstemp(dir=directory)
+        with os.fdopen(fd, "wb") as f:
+            tomli_w.dump(merged, f)
+        os.chmod(tmp, 0o600)
+        os.replace(tmp, target)
+      '';
 
   mkSeedSecretsScript =
     { fnoxPackage
@@ -172,10 +236,14 @@ rec {
           return 2
         fi
 
-        # WHY: the seed source is authoritative; a store value that differs
-        # (rotated token, stale or placeholder entry) is replaced.
-        current="$("$FNOX_BIN" -c "$FNOX_CONFIG" get "$name" 2>/dev/null || true)"
-        if [ -n "$current" ] && [ "$current" = "$value" ]; then
+        # WHY: an existing stored value wins (docs/security.md). Look at the
+        # store alone: unset the env var (fnox falls back to it) and fail on a
+        # missing secret. A missing or undecryptable value, or the legacy
+        # placeholder "age" left by configs that rendered `default = <provider>`,
+        # counts as not seeded.
+        stored=""
+        if stored="$(env -u "$name" "$FNOX_BIN" -c "$FNOX_CONFIG" --if-missing error get "$name" 2>/dev/null)" \
+          && [ -n "$stored" ] && [ "$stored" != "age" ]; then
           return 0
         fi
 
