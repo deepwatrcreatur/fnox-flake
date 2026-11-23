@@ -99,7 +99,10 @@ rec {
               _: value:
                 {
                   description = value.description;
-                  default = value.provider;
+                  # GOTCHA: not `default`: in fnox that is the fallback VALUE, so an
+                  # unseeded secret resolved to the provider name ("age") and
+                  # seeding skipped it as already present.
+                  provider = value.provider;
                 }
             )
             (lib.mapAttrs normalizedSecret secrets);
@@ -149,10 +152,6 @@ rec {
           return 2
         fi
 
-        if "$FNOX_BIN" -c "$FNOX_CONFIG" get "$name" >/dev/null 2>&1; then
-          return 0
-        fi
-
         if [ ! -r "$file" ]; then
           echo "Warning: fnox seed source '$file' for '$name' is not readable; trying next source" >&2
           return 2
@@ -173,8 +172,16 @@ rec {
           return 2
         fi
 
+        # WHY: the seed source is authoritative; a store value that differs
+        # (rotated token, stale or placeholder entry) is replaced.
+        current="$("$FNOX_BIN" -c "$FNOX_CONFIG" get "$name" 2>/dev/null || true)"
+        if [ -n "$current" ] && [ "$current" = "$value" ]; then
+          return 0
+        fi
+
         set_output=""
-        if ! set_output=$("$FNOX_BIN" -c "$FNOX_CONFIG" set "$name" "$value" 2>&1); then
+        # SECURITY: pass the value on stdin, not argv, so it never appears in ps.
+        if ! set_output=$(printf '%s' "$value" | "$FNOX_BIN" -c "$FNOX_CONFIG" set "$name" 2>&1); then
           echo "Error: failed to seed fnox secret '$name' from '$file'" >&2
           echo "$set_output" >&2
           return 1

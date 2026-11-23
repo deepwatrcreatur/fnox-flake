@@ -36,6 +36,37 @@ let
     exit 0
   '';
 
+  # fnox where 'get' returns a stale placeholder ("age") and 'set' records the
+  # value it receives on stdin into $FNOX_TEST_SET_LOG.
+  fnoxGetStale = pkgs.writeShellScriptBin "fnox" ''
+    while [ "$#" -gt 0 ]; do
+      case "$1" in
+        get) echo "age"; exit 0 ;;
+        set)
+          shift
+          if [ "$#" -gt 1 ]; then echo "mock: value passed on argv" >&2; exit 1; fi
+          cat > "$FNOX_TEST_SET_LOG"
+          exit 0 ;;
+        -c) shift 2 ;;
+        *) shift ;;
+      esac
+    done
+    exit 0
+  '';
+
+  # fnox where 'get' returns mock-secret-value and 'set' must never be called.
+  fnoxGetSameSetForbidden = pkgs.writeShellScriptBin "fnox" ''
+    while [ "$#" -gt 0 ]; do
+      case "$1" in
+        get) echo "mock-secret-value"; exit 0 ;;
+        set) echo "mock: set must not be called when the value is unchanged" >&2; exit 1 ;;
+        -c) shift 2 ;;
+        *) shift ;;
+      esac
+    done
+    exit 0
+  '';
+
   # fnox where 'get' fails (not yet seeded) and 'set' also fails (e.g. bad config)
   fnoxSetFails = pkgs.writeShellScriptBin "fnox" ''
     while [ "$#" -gt 0 ]; do
@@ -215,11 +246,11 @@ in
   # Already-seeded secret (get succeeds) must be skipped without calling set
   seed-skips-already-seeded =
     let
-      sourceFile = pkgs.writeText "mock-secret-source" "my-test-secret-value";
+      sourceFile = pkgs.writeText "mock-same-secret-source" "mock-secret-value";
       seedScript = pkgs.writeShellScript "test-seed-already-seeded" (
         fnoxLib.mkSeedSecretsScript {
-          # get succeeds → already seeded → set should never be called
-          fnoxPackage = fnoxGetSucceeds;
+          # get returns the same value as the source -> set must not run
+          fnoxPackage = fnoxGetSameSetForbidden;
           secretSources = {
             TEST_KEY = [ "${sourceFile}" ];
           };
@@ -228,6 +259,44 @@ in
     in
     pkgs.runCommand "seed-skips-already-seeded" sandboxEnv ''
       ${seedScript}
+      touch "$out"
+    '';
+
+  # A stored value that differs from the source (here the placeholder "age"
+  # that `default = <provider>` used to produce) must be reseeded, via stdin.
+  seed-reseeds-on-drift =
+    let
+      sourceFile = pkgs.writeText "mock-new-secret-source" "ghp_rotatedtoken";
+      seedScript = pkgs.writeShellScript "test-seed-drift" (
+        fnoxLib.mkSeedSecretsScript {
+          fnoxPackage = fnoxGetStale;
+          secretSources = {
+            TEST_KEY = [ "${sourceFile}" ];
+          };
+        }
+      );
+    in
+    pkgs.runCommand "seed-reseeds-on-drift" sandboxEnv ''
+      export FNOX_TEST_SET_LOG="$PWD/set.log"
+      ${seedScript}
+      test "$(cat "$FNOX_TEST_SET_LOG")" = "ghp_rotatedtoken"
+      touch "$out"
+    '';
+
+  # Declared secrets render with `provider`, never `default` (which fnox treats
+  # as the fallback value).
+  config-renders-provider-not-default =
+    let
+      toml = pkgs.writeText "fnox-config.toml" (fnoxLib.mkFnoxConfigToml {
+        recipients = [ "age1example" ];
+        secrets = {
+          TEST_KEY = { description = "test"; };
+        };
+      });
+    in
+    pkgs.runCommand "config-renders-provider-not-default" sandboxEnv ''
+      grep -q '^provider = "age"' ${toml}
+      ! grep -q '^default' ${toml}
       touch "$out"
     '';
 
