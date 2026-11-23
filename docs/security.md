@@ -38,6 +38,14 @@ generated settings into a writable `~/.config/fnox/config.toml` (mode 0600):
 A store link left by an older version of the module is replaced on the first
 activation.
 
+With `programs.fnox.sshIdentity.enable`, the account's own SSH key is the
+fnox identity: activation derives the age recipient from the private key
+(`ssh-keygen -y`) and writes it into the config, so the recipient always
+matches the key fnox decrypts with, and no shared age key is distributed.
+Values encrypted to earlier recipients become undecryptable and are reseeded
+from their sources. If the key is missing, unreadable or passphrase-protected,
+activation warns and skips fnox config and seeding.
+
 ## Wrapped Commands And Missing Secrets
 
 Plain `fnox get` exits 0 with no output for a declared secret that has no

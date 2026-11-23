@@ -142,6 +142,8 @@ rec {
         import tomli_w
 
         target = sys.argv[1]
+        # Optional recipient derived at activation from the SSH identity.
+        recipient = sys.argv[2] if len(sys.argv) > 2 and sys.argv[2] else None
         with open("${template}", "rb") as f:
             tmpl = tomllib.load(f)
         existing = {}
@@ -152,6 +154,10 @@ rec {
         merged = dict(existing)
         providers = dict(existing.get("providers", {}))
         providers.update(tmpl.get("providers", {}))
+        if recipient:
+            age = dict(providers.get("age", {"type": "age"}))
+            age["recipients"] = [recipient]
+            providers["age"] = age
         merged["providers"] = providers
 
         secrets = dict(existing.get("secrets", {}))

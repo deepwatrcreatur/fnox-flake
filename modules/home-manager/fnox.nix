@@ -35,8 +35,29 @@ in
 
     ageKeyFile = lib.mkOption {
       type = lib.types.str;
-      default = "${config.home.homeDirectory}/.config/sops/age/keys.txt";
+      default =
+        if cfg.sshIdentity.enable then
+          cfg.sshIdentity.keyFile
+        else
+          "${config.home.homeDirectory}/.config/sops/age/keys.txt";
+      defaultText = lib.literalExpression ''
+        if sshIdentity.enable then sshIdentity.keyFile else "~/.config/sops/age/keys.txt"
+      '';
       description = "Age identity file used by fnox.";
+    };
+
+    sshIdentity = {
+      enable = lib.mkEnableOption ''
+        using this account's own SSH key as the fnox identity. Activation
+        derives the age recipient from the private key (`ssh-keygen -y`), so
+        recipient and identity always match and no shared age key has to be
+        distributed. If the key is missing, fnox setup is skipped with a warning
+      '';
+      keyFile = lib.mkOption {
+        type = lib.types.str;
+        default = "${config.home.homeDirectory}/.ssh/id_ed25519";
+        description = "Unencrypted SSH private key (ed25519 or RSA) used as the fnox identity.";
+      };
     };
 
     recipients = lib.mkOption {
@@ -115,7 +136,7 @@ in
         {
           # An empty recipients list means fnox will generate a config with no
           # age recipients, making it impossible to encrypt any secrets.
-          assertion = cfg.recipients != [ ];
+          assertion = cfg.recipients != [ ] || cfg.sshIdentity.enable;
           message = ''
             programs.fnox.recipients is empty. Provide at least one age public key so
             fnox can encrypt secrets (e.g. programs.fnox.recipients = [ "age1..." ];).
@@ -163,6 +184,20 @@ in
     # The generated settings are merged into a writable file instead, keeping
     # stored values.
     home.activation.fnoxConfig = lib.hm.dag.entryAfter [ "linkGeneration" ] ''
+      # Home Manager runs all activation steps in one shell, so fnoxSkip is
+      # seen by fnoxSeedSecrets below.
+      fnoxSkip=""
+      fnox_recipient=""
+      ${lib.optionalString cfg.sshIdentity.enable ''
+        if [ -r ${lib.escapeShellArg cfg.sshIdentity.keyFile} ] \
+          && fnox_pub="$(${pkgs.openssh}/bin/ssh-keygen -y -P "" -f ${lib.escapeShellArg cfg.sshIdentity.keyFile} 2>/dev/null)"; then
+          fnox_recipient="$(printf '%s' "$fnox_pub" | ${pkgs.coreutils}/bin/cut -d' ' -f1,2)"
+        else
+          echo "Warning: fnox SSH identity ${cfg.sshIdentity.keyFile} is missing, unreadable or passphrase-protected; skipping fnox config and seeding" >&2
+          fnoxSkip=1
+        fi
+      ''}
+      if [ -z "$fnoxSkip" ]; then
       if [ -L ${lib.escapeShellArg configPath} ]; then
         # A store link from an older version of this module.
         tmp="$(mktemp)"
@@ -176,7 +211,8 @@ in
           recipients = cfg.recipients;
           secrets = cfg.secretDefinitions;
         });
-      }} ${lib.escapeShellArg configPath}
+      }} ${lib.escapeShellArg configPath} "$fnox_recipient"
+      fi
     '';
 
     home.activation.fnoxSeedSecrets = lib.mkIf (cfg.seedSecretSources != { }) (
@@ -187,12 +223,14 @@ in
         # GOTCHA: the seed script uses `exit`; a subshell keeps that from ending
         # the rest of the Home Manager activation, and a real failure still
         # fails activation.
+        if [ -z "''${fnoxSkip:-}" ]; then
         (
         ${fnoxLib.mkSeedSecretsScript {
           fnoxPackage = cfg.package;
           secretSources = cfg.seedSecretSources;
         }}
         ) || exit $?
+        fi
       ''
     );
   };
