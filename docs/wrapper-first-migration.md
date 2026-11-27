@@ -78,19 +78,25 @@ If you have not already run `home-manager switch` with `seedSecretSources`
 configured, seed secrets manually:
 
 ```bash
-fnox -c ~/.config/fnox/config.toml set --provider age GITHUB_TOKEN < ~/.config/git/github-token
-fnox -c ~/.config/fnox/config.toml set --provider age ANTHROPIC_API_KEY < ~/.local/share/secrets/anthropic
+# WHY: the wrappers read the config named by FNOX_CONFIG; seed that one.
+cfg="${FNOX_CONFIG:-$HOME/.config/fnox/config.toml}"
+fnox -c "$cfg" set --provider age GITHUB_TOKEN < ~/.config/git/github-token
+fnox -c "$cfg" set --provider age ANTHROPIC_API_KEY < ~/.local/share/secrets/anthropic
 ```
 
 Read the value from stdin, never as an argument (`fnox set NAME "$(cat
 file)"` puts the token in `ps` and shell history). fnox drops the trailing
 newline.
 
-Verify without printing the value, by probing the service:
+Verify without printing the value, by probing the service. Unset the
+variable first: for a secret with no stored value, `fnox exec` passes the
+shell's own value through, so a token still exported by your profile would
+make the probe pass while fnox holds nothing.
 
 ```bash
-fnox exec -- sh -c 'printf "Authorization: Bearer %s\n" "$GITHUB_TOKEN" |
-  curl -sS -o /dev/null -w "%{http_code}\n" -H @- https://api.github.com/user'
+env -u GITHUB_TOKEN -u GH_TOKEN fnox -c "$cfg" exec -- sh -c '
+  printf "Authorization: Bearer %s\n" "$GITHUB_TOKEN" |
+    curl -sS -o /dev/null -w "%{http_code}\n" -H @- https://api.github.com/user'
 ```
 
 200 means the stored token works.
