@@ -1,5 +1,6 @@
 { config
 , lib
+, options
 , pkgs
 , ...
 }:
@@ -16,6 +17,29 @@ let
         } // spec)
     )
     cfg.wrappedCommands;
+  gitHelper = fnoxLib.mkGitCredentialHelper {
+    fnoxPackage = cfg.package;
+    inherit (cfg.gitCredentialHelper) secret username hosts;
+    # WHY: baked in, because git may run without the session variables
+    # (agent shells, GIT_CONFIG_GLOBAL=/dev/null, cron).
+    inherit configPath;
+    ageKeyFile = cfg.ageKeyFile;
+  };
+  gitCredentialSettings = {
+    credential = lib.listToAttrs (map
+      (host: {
+        # WHY: normalised, so the key matches programs.gh's lowercase one and
+        # the override replaces it instead of adding a second section.
+        name = "https://${fnoxLib.normalizeGitHost host}";
+        # WHY: replaces other helpers for this URL. The override drops
+        # definitions of the same setting from other modules (programs.gh adds
+        # [ "" "gh auth git-credential" ], whose "" would clear fnox), and ""
+        # clears helpers from sections written earlier in the file. It also
+        # keeps git from sending the token to another helper's `store`.
+        value.helper = lib.mkOverride 60 [ "" "${gitHelper}/bin/git-credential-fnox" ];
+      })
+      cfg.gitCredentialHelper.hosts);
+  };
 in
 {
   options.programs.fnox = {
@@ -87,6 +111,33 @@ in
       type = lib.types.attrsOf (lib.types.listOf lib.types.str);
       default = { };
       description = "Fallback source files to seed into fnox during Home Manager activation.";
+    };
+
+    gitCredentialHelper = {
+      enable = lib.mkEnableOption ''
+        `git-credential-fnox`: git gets HTTPS credentials for `hosts` from the
+        fnox secret `secret`, never from a token file. It replaces the other
+        credential helpers for those hosts (such as `gh auth git-credential`),
+        so enable it only where fnox can decrypt the token. Needs
+        `programs.git.enable`, since Home Manager writes the git config only
+        then. The helper is also installed, so `git -c credential.helper=fnox`
+        works with the global config off
+      '';
+      hosts = lib.mkOption {
+        type = lib.types.listOf lib.types.str;
+        default = [ "github.com" ];
+        description = "Hosts the helper answers for (HTTPS only).";
+      };
+      secret = lib.mkOption {
+        type = lib.types.str;
+        default = "GITHUB_TOKEN";
+        description = "fnox secret that holds the token.";
+      };
+      username = lib.mkOption {
+        type = lib.types.str;
+        default = "x-access-token";
+        description = "User name sent with the token.";
+      };
     };
 
     wrappedCommands = lib.mkOption {
@@ -169,14 +220,34 @@ in
                 spec.secrets
           )
           cfg.wrappedCommands
-      );
+      )
+      ++ [
+        {
+          # WHY: Home Manager writes the git config only with programs.git on;
+          # without it the helper would be installed but never asked.
+          assertion = !cfg.gitCredentialHelper.enable || config.programs.git.enable;
+          message = "programs.fnox.gitCredentialHelper needs programs.git.enable (Home Manager writes the git config only then). Without it, use `git -c credential.helper=fnox`.";
+        }
+        {
+          assertion = !cfg.gitCredentialHelper.enable || lib.hasAttr cfg.gitCredentialHelper.secret cfg.secretDefinitions;
+          message = "programs.fnox.gitCredentialHelper.secret '${cfg.gitCredentialHelper.secret}' is not declared in programs.fnox.secretDefinitions.";
+        }
+      ];
 
     home.sessionVariables = {
       FNOX_AGE_KEY_FILE = cfg.ageKeyFile;
       FNOX_CONFIG = configPath;
     };
 
-    home.packages = [ cfg.package ] ++ wrappedPackages;
+    home.packages = [ cfg.package ] ++ wrappedPackages
+      ++ lib.optional cfg.gitCredentialHelper.enable gitHelper;
+
+    # GOTCHA: Home Manager renamed programs.git.extraConfig to settings.
+    programs.git = lib.mkIf cfg.gitCredentialHelper.enable (
+      if options.programs.git ? settings
+      then { settings = gitCredentialSettings; }
+      else { extraConfig = gitCredentialSettings; }
+    );
 
     # WHY: not xdg.configFile. A store symlink is read-only, so `fnox set`
     # (seeding, or the user) could not write to it, and replacing it with a
