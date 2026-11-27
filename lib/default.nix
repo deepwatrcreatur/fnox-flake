@@ -14,9 +14,11 @@ let
     ANTHROPIC_API_KEY.description = "Anthropic API key";
     ATTIC_CLIENT_JWT_TOKEN.description = "Attic client JWT token";
     BW_SESSION.description = "Bitwarden session key";
+    DEEPSEEK_API_KEY.description = "DeepSeek API key";
     GEMINI_API_KEY.description = "Google Gemini API key";
     GITHUB_TOKEN.description = "GitHub personal access token";
     GROK_API_KEY.description = "XAI Grok API key";
+    OPENAI_API_KEY.description = "OpenAI API key";
     OPENROUTER_API_KEY.description = "OpenRouter API key";
     OPENCODE_ZEN_API_KEY.description = "OpenCode Zen API key";
     PROXMOX_API_TOKEN.description = "Proxmox API token";
