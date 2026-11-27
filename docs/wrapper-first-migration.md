@@ -49,11 +49,14 @@ gh-fnox pr list   # GITHUB_TOKEN exists only inside gh-fnox's process tree
 Work through this checklist before removing any `export` lines from your
 shell profile:
 
-1. **fnox is seeded.** Run `fnox get GITHUB_TOKEN` (or the relevant key) and
-   confirm it returns the correct token, not an error.
+1. **fnox is seeded.** Probe the stored value without printing it (see the
+   curl check in [Step 1](#step-1--seed-secrets-into-fnox)); expect HTTP 200,
+   not 401.
 
 2. **The wrapped command works end-to-end.** Run `gh-fnox repo list` (or
-   equivalent) and confirm it authenticates successfully.
+   equivalent) and confirm it authenticates successfully. This alone is not
+   proof that fnox works: `gh-fnox` falls back to a token file or gh's stored
+   login when fnox's value is empty or malformed.
 
 3. **Token files are healthy.** If you use `seedSecretSources`, confirm each
    source file contains a single-line token, not an error message. See
@@ -75,16 +78,22 @@ If you have not already run `home-manager switch` with `seedSecretSources`
 configured, seed secrets manually:
 
 ```bash
-fnox set GITHUB_TOKEN "$(cat ~/.config/git/github-token)"
-fnox set ANTHROPIC_API_KEY "$(cat ~/.local/share/secrets/anthropic)"
+fnox -c ~/.config/fnox/config.toml set --provider age GITHUB_TOKEN < ~/.config/git/github-token
+fnox -c ~/.config/fnox/config.toml set --provider age ANTHROPIC_API_KEY < ~/.local/share/secrets/anthropic
 ```
 
-Verify with:
+Read the value from stdin, never as an argument (`fnox set NAME "$(cat
+file)"` puts the token in `ps` and shell history). fnox drops the trailing
+newline.
+
+Verify without printing the value, by probing the service:
 
 ```bash
-fnox get GITHUB_TOKEN
-fnox get ANTHROPIC_API_KEY
+fnox exec -- sh -c 'printf "Authorization: Bearer %s\n" "$GITHUB_TOKEN" |
+  curl -sS -o /dev/null -w "%{http_code}\n" -H @- https://api.github.com/user'
 ```
+
+200 means the stored token works.
 
 ### Step 2 — Test the wrapped commands
 
