@@ -360,14 +360,14 @@ in
   config-merge-keeps-values =
     let
       merge = fnoxLib.mkFnoxConfigMergeScript {
-        template = pkgs.writeText "tmpl.toml" (fnoxLib.mkFnoxConfigToml {
+        template = fnoxLib.mkFnoxConfigTomlFile {
           recipients = [ "age1new" ];
           secrets = {
             KEPT = { description = "kept"; };
             LEGACY = { description = "legacy"; };
             FRESH = { description = "fresh"; };
           };
-        });
+        };
       };
       existing = pkgs.writeText "existing.toml" ''
         [providers.age]
@@ -413,12 +413,12 @@ in
   # as the fallback value).
   config-renders-provider-not-default =
     let
-      toml = pkgs.writeText "fnox-config.toml" (fnoxLib.mkFnoxConfigToml {
+      toml = fnoxLib.mkFnoxConfigTomlFile {
         recipients = [ "age1example" ];
         secrets = {
           TEST_KEY = { description = "test"; };
         };
-      });
+      };
     in
     pkgs.runCommand "config-renders-provider-not-default" sandboxEnv ''
       grep -q '^provider = "age"' ${toml}

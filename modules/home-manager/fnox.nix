@@ -279,10 +279,10 @@ in
         rm -f "$tmp"
       fi
       $DRY_RUN_CMD ${fnoxLib.mkFnoxConfigMergeScript {
-        template = pkgs.writeText "fnox-config-template.toml" (fnoxLib.mkFnoxConfigToml {
+        template = fnoxLib.mkFnoxConfigTomlFile {
           recipients = cfg.recipients;
           secrets = cfg.secretDefinitions;
-        });
+        };
       }} ${lib.escapeShellArg configPath} "$fnox_recipient"
       fi
     '';

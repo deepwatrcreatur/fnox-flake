@@ -162,40 +162,52 @@ rec {
       '';
     };
 
-  mkFnoxConfigToml =
+  /**
+    Generate the config as a store path without realizing it during evaluation.
+
+    Prefer this in NixOS and Home Manager modules so pure evaluation, including
+    `nix flake check --no-build`, does not require an import-from-derivation.
+  */
+  mkFnoxConfigTomlFile =
     { recipients ? [ ]
     , secrets ? defaultSecretDefinitions
     , extraProviders ? { }
     , extraConfig ? { }
     ,
     }:
-    builtins.readFile (
-      (pkgs.formats.toml { }).generate "fnox-config.toml" (
-        {
-          providers = {
-            age = {
-              type = "age";
-              inherit recipients;
-            };
-          }
-          // extraProviders;
-
-          secrets = lib.mapAttrs
-            (
-              _: value:
-                {
-                  description = value.description;
-                  # GOTCHA: not `default`: in fnox that is the fallback VALUE, so an
-                  # unseeded secret resolved to the provider name ("age") and
-                  # seeding skipped it as already present.
-                  provider = value.provider;
-                }
-            )
-            (lib.mapAttrs normalizedSecret secrets);
+    (pkgs.formats.toml { }).generate "fnox-config.toml" (
+      {
+        providers = {
+          age = {
+            type = "age";
+            inherit recipients;
+          };
         }
-        // extraConfig
-      )
+        // extraProviders;
+
+        secrets = lib.mapAttrs
+          (
+            _: value:
+              {
+                description = value.description;
+                # GOTCHA: not `default`: in fnox that is the fallback VALUE, so an
+                # unseeded secret resolved to the provider name ("age") and
+                # seeding skipped it as already present.
+                provider = value.provider;
+              }
+          )
+          (lib.mapAttrs normalizedSecret secrets);
+      }
+      // extraConfig
     );
+
+  /**
+    Return the generated fnox config as text.
+
+    Prefer `mkFnoxConfigTomlFile` in module evaluation; this compatibility
+    helper reads the generated file and therefore realizes its derivation.
+  */
+  mkFnoxConfigToml = args: builtins.readFile (mkFnoxConfigTomlFile args);
 
   /**
     Script that merges a generated fnox config into the live, writable config.
