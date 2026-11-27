@@ -41,6 +41,12 @@
         "$HOME/.config/git/github-token"
         "$HOME/.local/share/agenix-user-secrets/github-token"
       ];
+      DEEPSEEK_API_KEY = [
+        "$HOME/.local/share/agenix-user-secrets/deepseek-api-key"
+      ];
+      OPENAI_API_KEY = [
+        "$HOME/.local/share/agenix-user-secrets/openai-api-key"
+      ];
       Z_AI_API_KEY = [
         "$HOME/.local/share/agenix-user-secrets/z-ai-api-key"
       ];

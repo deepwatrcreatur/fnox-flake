@@ -14,9 +14,11 @@ let
     ANTHROPIC_API_KEY.description = "Anthropic API key";
     ATTIC_CLIENT_JWT_TOKEN.description = "Attic client JWT token";
     BW_SESSION.description = "Bitwarden session key";
+    DEEPSEEK_API_KEY.description = "DeepSeek API key";
     GEMINI_API_KEY.description = "Google Gemini API key";
     GITHUB_TOKEN.description = "GitHub personal access token";
     GROK_API_KEY.description = "XAI Grok API key";
+    OPENAI_API_KEY.description = "OpenAI API key";
     OPENROUTER_API_KEY.description = "OpenRouter API key";
     OPENCODE_ZEN_API_KEY.description = "OpenCode Zen API key";
     PROXMOX_API_TOKEN.description = "Proxmox API token";
@@ -160,40 +162,52 @@ rec {
       '';
     };
 
-  mkFnoxConfigToml =
+  /**
+    Generate the config as a store path without realizing it during evaluation.
+
+    Prefer this in NixOS and Home Manager modules so pure evaluation, including
+    `nix flake check --no-build`, does not require an import-from-derivation.
+  */
+  mkFnoxConfigTomlFile =
     { recipients ? [ ]
     , secrets ? defaultSecretDefinitions
     , extraProviders ? { }
     , extraConfig ? { }
     ,
     }:
-    builtins.readFile (
-      (pkgs.formats.toml { }).generate "fnox-config.toml" (
-        {
-          providers = {
-            age = {
-              type = "age";
-              inherit recipients;
-            };
-          }
-          // extraProviders;
-
-          secrets = lib.mapAttrs
-            (
-              _: value:
-                {
-                  description = value.description;
-                  # GOTCHA: not `default`: in fnox that is the fallback VALUE, so an
-                  # unseeded secret resolved to the provider name ("age") and
-                  # seeding skipped it as already present.
-                  provider = value.provider;
-                }
-            )
-            (lib.mapAttrs normalizedSecret secrets);
+    (pkgs.formats.toml { }).generate "fnox-config.toml" (
+      {
+        providers = {
+          age = {
+            type = "age";
+            inherit recipients;
+          };
         }
-        // extraConfig
-      )
+        // extraProviders;
+
+        secrets = lib.mapAttrs
+          (
+            _: value:
+              {
+                description = value.description;
+                # GOTCHA: not `default`: in fnox that is the fallback VALUE, so an
+                # unseeded secret resolved to the provider name ("age") and
+                # seeding skipped it as already present.
+                provider = value.provider;
+              }
+          )
+          (lib.mapAttrs normalizedSecret secrets);
+      }
+      // extraConfig
     );
+
+  /**
+    Return the generated fnox config as text.
+
+    Prefer `mkFnoxConfigTomlFile` in module evaluation; this compatibility
+    helper reads the generated file and therefore realizes its derivation.
+  */
+  mkFnoxConfigToml = args: builtins.readFile (mkFnoxConfigTomlFile args);
 
   /**
     Script that merges a generated fnox config into the live, writable config.
@@ -245,10 +259,17 @@ rec {
         secrets = dict(existing.get("secrets", {}))
         for name, decl in tmpl.get("secrets", {}).items():
             entry = dict(secrets.get(name, {}))
-            provider = entry.get("provider", decl.get("provider"))
-            if entry.get("default") in (decl.get("provider"), provider):
+            existing_value = "value" in entry
+            provider = entry.get("provider")
+            legacy_default = entry.get("default")
+            if legacy_default is not None and legacy_default in (decl.get("provider"), provider):
                 del entry["default"]
-            entry["provider"] = provider
+            # WHY: an existing value without a provider inherits fnox's
+            # default_provider; assigning the catalog provider would reinterpret it.
+            if provider is not None:
+                entry["provider"] = provider
+            elif not existing_value:
+                entry["provider"] = decl.get("provider")
             if "description" in decl:
                 entry["description"] = decl["description"]
             secrets[name] = entry

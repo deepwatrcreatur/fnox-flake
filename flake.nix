@@ -81,17 +81,17 @@
           checks = {
             fnox-config-render =
               let
-                configToml = pkgs.writeText "fnox-config.toml" (
-                  fnoxLib.mkFnoxConfigToml {
-                    recipients = [
-                      "age1example000000000000000000000000000000000000000000000000000000"
-                    ];
-                  }
-                );
+                configToml = fnoxLib.mkFnoxConfigTomlFile {
+                  recipients = [
+                    "age1example000000000000000000000000000000000000000000000000000000"
+                  ];
+                };
               in
               pkgs.runCommand "fnox-config-render-check" { } ''
                 grep -q '\[providers.age\]' ${configToml}
                 grep -q '\[secrets.GITHUB_TOKEN\]' ${configToml}
+                grep -q '\[secrets.DEEPSEEK_API_KEY\]' ${configToml}
+                grep -q '\[secrets.OPENAI_API_KEY\]' ${configToml}
                 grep -q 'Z_AI_API_KEY' ${configToml}
                 touch $out
               '';

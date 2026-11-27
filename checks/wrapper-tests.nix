@@ -360,19 +360,25 @@ in
   config-merge-keeps-values =
     let
       merge = fnoxLib.mkFnoxConfigMergeScript {
-        template = pkgs.writeText "tmpl.toml" (fnoxLib.mkFnoxConfigToml {
+        template = fnoxLib.mkFnoxConfigTomlFile {
           recipients = [ "age1new" ];
           secrets = {
             KEPT = { description = "kept"; };
             LEGACY = { description = "legacy"; };
             FRESH = { description = "fresh"; };
+            INHERITED = { description = "OpenAI API key"; };
           };
-        });
+        };
       };
       existing = pkgs.writeText "existing.toml" ''
+        default_provider = "vault"
+
         [providers.age]
         type = "age"
         recipients = ["age1old"]
+
+        [providers.vault]
+        type = "1password"
 
         [secrets.KEPT]
         provider = "age"
@@ -385,6 +391,9 @@ in
         [secrets.USER_ONLY]
         provider = "age"
         value = "dXNlcg=="
+
+        [secrets.INHERITED]
+        value = "OpenAI"
       '';
       check = pkgs.writers.writePython3 "check-merge" { } ''
         import sys
@@ -398,6 +407,9 @@ in
         assert c["secrets"]["LEGACY"]["provider"] == "age", c
         assert "value" not in c["secrets"]["FRESH"], c
         assert c["secrets"]["USER_ONLY"]["value"] == "dXNlcg==", c
+        assert c["default_provider"] == "vault", c
+        assert c["secrets"]["INHERITED"]["value"] == "OpenAI", c
+        assert "provider" not in c["secrets"]["INHERITED"], c
       '';
     in
     pkgs.runCommand "config-merge-keeps-values" sandboxEnv ''
@@ -413,12 +425,12 @@ in
   # as the fallback value).
   config-renders-provider-not-default =
     let
-      toml = pkgs.writeText "fnox-config.toml" (fnoxLib.mkFnoxConfigToml {
+      toml = fnoxLib.mkFnoxConfigTomlFile {
         recipients = [ "age1example" ];
         secrets = {
           TEST_KEY = { description = "test"; };
         };
-      });
+      };
     in
     pkgs.runCommand "config-renders-provider-not-default" sandboxEnv ''
       grep -q '^provider = "age"' ${toml}
