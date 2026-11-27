@@ -31,11 +31,11 @@ let
         # WHY: normalised, so the key matches programs.gh's lowercase one and
         # the override replaces it instead of adding a second section.
         name = "https://${fnoxLib.normalizeGitHost host}";
-        # WHY: replaces other helpers for this URL. The override drops
-        # definitions of the same setting from other modules (programs.gh adds
-        # [ "" "gh auth git-credential" ], whose "" would clear fnox), and ""
-        # clears helpers from sections written earlier in the file. It also
-        # keeps git from sending the token to another helper's `store`.
+        # WHY: the override drops other modules' definitions of this setting
+        # (programs.gh adds [ "" "gh auth git-credential" ], whose "" would
+        # clear fnox), and "" clears helpers git read earlier for this URL.
+        # GOTCHA: helpers git reads later (an included file, a separate
+        # `https://github.com:443` section) still run and receive `store`.
         value.helper = lib.mkOverride 60 [ "" "${gitHelper}/bin/git-credential-fnox" ];
       })
       cfg.gitCredentialHelper.hosts);
@@ -117,7 +117,8 @@ in
       enable = lib.mkEnableOption ''
         `git-credential-fnox`: git gets HTTPS credentials for `hosts` from the
         fnox secret `secret`, never from a token file. It replaces the other
-        credential helpers for those hosts (such as `gh auth git-credential`),
+        credential helpers configured for those hosts in Home Manager or earlier
+        in the git config (such as `gh auth git-credential`),
         so enable it only where fnox can decrypt the token. Needs
         `programs.git.enable`, since Home Manager writes the git config only
         then. The helper is also installed, so `git -c credential.helper=fnox`

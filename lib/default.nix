@@ -89,7 +89,9 @@ rec {
     prints nothing, so git moves on to the next helper. `store` and
     `erase` are ignored: fnox stays the only place the token is kept.
 
-    Use it with `git -c credential.helper=fnox push`, or set it in the git
+    Use it with `git -c credential.helper= -c credential.helper=fnox push`
+    (the empty value drops helpers such as `store` that would otherwise also
+    receive the token), or set it in the git
     config (the Home Manager option `programs.fnox.gitCredentialHelper`).
 
     # Arguments

@@ -101,10 +101,12 @@ programs.fnox.gitCredentialHelper.enable = true;
 # hosts = [ "github.com" "gist.github.com" ]; secret = "GITHUB_TOKEN";
 ```
 
-This installs the helper and makes it the only credential helper for those
-hosts, replacing others such as `gh auth git-credential` (from `programs.gh`
-or your own settings). That also keeps git from passing the token to another
-helper's `store`. Enable it only where fnox can decrypt the token. It needs
+This installs the helper and puts it ahead of every other credential helper
+for those hosts: it replaces helpers set for them in Home Manager (such as
+`programs.gh`'s `gh auth git-credential`) and clears helpers git read earlier
+in its config, so they don't receive the token on `store`. Helpers git reads
+later (an included file, or a separate `https://github.com:443` section)
+still run; keep `store`-type helpers out of those. Enable it only where fnox can decrypt the token. It needs
 `programs.git.enable`, because Home Manager writes the git config only then.
 The host is matched case-insensitively, and an explicit `:443` is ignored.
 
