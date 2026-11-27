@@ -259,10 +259,17 @@ rec {
         secrets = dict(existing.get("secrets", {}))
         for name, decl in tmpl.get("secrets", {}).items():
             entry = dict(secrets.get(name, {}))
-            provider = entry.get("provider", decl.get("provider"))
-            if entry.get("default") in (decl.get("provider"), provider):
+            existing_value = "value" in entry
+            provider = entry.get("provider")
+            legacy_default = entry.get("default")
+            if legacy_default is not None and legacy_default in (decl.get("provider"), provider):
                 del entry["default"]
-            entry["provider"] = provider
+            # WHY: an existing value without a provider inherits fnox's
+            # default_provider; assigning the catalog provider would reinterpret it.
+            if provider is not None:
+                entry["provider"] = provider
+            elif not existing_value:
+                entry["provider"] = decl.get("provider")
             if "description" in decl:
                 entry["description"] = decl["description"]
             secrets[name] = entry
