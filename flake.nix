@@ -92,6 +92,8 @@
               pkgs.runCommand "fnox-config-render-check" { } ''
                 grep -q '\[providers.age\]' ${configToml}
                 grep -q '\[secrets.GITHUB_TOKEN\]' ${configToml}
+                grep -q '\[secrets.DEEPSEEK_API_KEY\]' ${configToml}
+                grep -q '\[secrets.OPENAI_API_KEY\]' ${configToml}
                 grep -q 'Z_AI_API_KEY' ${configToml}
                 touch $out
               '';
