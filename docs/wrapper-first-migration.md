@@ -153,7 +153,7 @@ single-line token (not an error message).
 | `gemini` (Gemini CLI) | Yes | `GEMINI_API_KEY`; `gemini-fnox` is built-in |
 | `curl` / `xh` / `httpie` | Repo-local | Invocation shape and required key vary per repo — use `mkWrappedCommand` rather than a shared default; see below |
 | Proxmox CLIs (`pvesh`, `qm`, `pveam`) | Repo-local | `PROXMOX_API_TOKEN` is in `defaultSecretDefinitions` but command patterns are host-specific — define locally with `mkWrappedCommand` |
-| `git` (credential helper) | Indirect | Use `gh-fnox` as the credential helper: `git config credential.helper 'gh-fnox auth git-credential'` |
+| `git` (credential helper) | Yes | `git-credential-fnox`; enable `programs.fnox.gitCredentialHelper` or use `git -c credential.helper=fnox` (see the README) |
 | `ssh` | No | Key agent handles authentication; no env var secret needed |
 | `nix` / `nixos-rebuild` | No | Does not read secrets from the environment |
 | Scripts that call multiple tools | Case-by-case | Wrap at the outermost entry point, not each inner tool call |

@@ -7,11 +7,13 @@
 - `packages.<system>.default`, `packages.<system>.fnox`: source-built `fnox` — reproducible, identical on all platforms
 - `packages.<system>.fnox-binary`: upstream pre-built binary (x86\_64-linux, aarch64-linux, x86\_64-darwin, aarch64-darwin) — opt-in for faster installs
 - `packages.<system>.fnox-from-source`: explicit alias for the source build
+- `packages.<system>.git-credential-fnox`: git credential helper backed by fnox (see [Git Credential Helper](#git-credential-helper))
 - `packages.<system>.gh-fnox`, `bw-fnox`, `opencode-zai`, `claude-fnox`, `gemini-fnox`: wrapped commands that load only the secrets they need (see [docs/wrapper-catalog.md](docs/wrapper-catalog.md))
 - `apps.<system>.*`: `nix run` entrypoints for the packages above
 - `lib.<system>`:
   - `mkSecretSpec`
   - `mkWrappedCommand`
+  - `mkGitCredentialHelper`
   - `mkFnoxConfigToml`
   - `mkSeedSecretsScript`
   - `defaultSecretDefinitions`
@@ -84,6 +86,36 @@ The wrapped commands (`gh-fnox`, `bw-fnox`, `opencode-zai`) always use the sourc
 ```
 
 The module default for `programs.fnox.package` is `pkgs.fnox`, so the overlay is required unless you set `programs.fnox.package` explicitly.
+
+## Git Credential Helper
+
+`git-credential-fnox` (package, and `lib.mkGitCredentialHelper`) answers git's
+HTTPS credential requests for `github.com` with `x-access-token` and the fnox
+secret `GITHUB_TOKEN`. It never reads a token file, ignores `store`/`erase`,
+and ignores a `GITHUB_TOKEN` already in the environment, so the credential
+always comes from fnox. When fnox cannot provide it, the helper prints nothing
+and git moves on to the next helper.
+
+```nix
+programs.fnox.gitCredentialHelper.enable = true;
+# hosts = [ "github.com" "gist.github.com" ]; secret = "GITHUB_TOKEN";
+```
+
+This installs the helper and puts it ahead of every other credential helper
+for those hosts: it replaces helpers set for them in Home Manager (such as
+`programs.gh`'s `gh auth git-credential`) and clears helpers git read earlier
+in its config, so they don't receive the token on `store`. Helpers git reads
+later (an included file, or a separate `https://github.com:443` section)
+still run; keep `store`-type helpers out of those. Enable it only where fnox can decrypt the token. It needs
+`programs.git.enable`, because Home Manager writes the git config only then.
+The host is matched case-insensitively, and an explicit `:443` is ignored.
+
+Without the option, or with the global git config off
+(`GIT_CONFIG_GLOBAL=/dev/null`), name it per command:
+
+```bash
+git -c credential.helper= -c credential.helper=fnox push
+```
 
 ## Version
 

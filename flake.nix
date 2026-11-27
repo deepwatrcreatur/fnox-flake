@@ -66,7 +66,10 @@
           // pkgs.lib.optionalAttrs (fnoxBinary != null) {
             fnox-binary = fnoxBinary;
           }
-          // wrappedCommands;
+          // wrappedCommands
+          // {
+            git-credential-fnox = fnoxLib.mkGitCredentialHelper { inherit fnoxPackage; };
+          };
 
           apps = pkgs.lib.mapAttrs
             (_: drv: {
@@ -120,6 +123,9 @@
             '';
           }
           // import ./checks/wrapper-tests.nix {
+            inherit pkgs fnoxLib;
+          }
+          // import ./checks/git-credential-tests.nix {
             inherit pkgs fnoxLib;
           }
           // {

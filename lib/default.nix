@@ -22,9 +22,12 @@ let
     PROXMOX_API_TOKEN.description = "Proxmox API token";
     Z_AI_API_KEY.description = "Z.AI API key";
   };
+
+  # Lowercase, without an explicit default HTTPS port: how git matches hosts.
+  normalizeGitHost = h: lib.removeSuffix ":443" (lib.toLower h);
 in
 rec {
-  inherit defaultSecretDefinitions;
+  inherit defaultSecretDefinitions normalizeGitHost;
 
   mkSecretSpec =
     { envVar
@@ -77,6 +80,85 @@ rec {
 
       exec ${command}/bin/${binaryName} "$@"
     '';
+
+  /**
+    A git credential helper (`git-credential-fnox`) that answers HTTPS
+    `get` requests for the given hosts with a token from fnox.
+
+    It never reads token files. When fnox cannot provide the secret it
+    prints nothing, so git moves on to the next helper. `store` and
+    `erase` are ignored: fnox stays the only place the token is kept.
+
+    Use it with `git -c credential.helper= -c credential.helper=fnox push`
+    (the empty value drops helpers such as `store` that would otherwise also
+    receive the token), or set it in the git
+    config (the Home Manager option `programs.fnox.gitCredentialHelper`).
+
+    # Arguments
+
+    - `fnoxPackage`: the fnox package.
+    - `secret`: fnox secret holding the token (default `GITHUB_TOKEN`).
+    - `username`: user name sent with the token (default `x-access-token`).
+    - `hosts`: hosts it answers for (default `[ "github.com" ]`).
+    - `configPath`, `ageKeyFile`: baked-in paths; when null, the helper uses
+      `$FNOX_CONFIG` / `$FNOX_AGE_KEY_FILE` or the wrappers' defaults.
+  */
+  mkGitCredentialHelper =
+    { fnoxPackage
+    , secret ? "GITHUB_TOKEN"
+    , username ? "x-access-token"
+    , hosts ? [ "github.com" ]
+    , configPath ? null
+    , ageKeyFile ? null
+    ,
+    }:
+    pkgs.writeShellApplication {
+      name = "git-credential-fnox";
+      runtimeInputs = [ pkgs.coreutils ];
+      # WHY: baked-in paths are single-quoted on purpose (no expansion);
+      # SC2016 would reject a path that happens to contain `$`.
+      excludeShellChecks = [ "SC2016" ];
+      text = ''
+        action="''${1:-}"
+        # Read the whole request, as git expects, whatever the action.
+        protocol=""
+        host=""
+        while IFS= read -r line && [ -n "$line" ]; do
+          case "$line" in
+            protocol=*) protocol="''${line#protocol=}" ;;
+            host=*) host="''${line#host=}" ;;
+          esac
+        done
+        [ "$action" = get ] || exit 0
+        [ "$protocol" = https ] || exit 0
+        # WHY: git passes the host as written in the URL; match it the way
+        # git matched the config (case-insensitive, default port optional).
+        host="''${host,,}"
+        host="''${host%:443}"
+        hosts=${lib.escapeShellArg " ${lib.concatStringsSep " " (map normalizeGitHost hosts)} "}
+        secret=${lib.escapeShellArg secret}
+        case "$hosts" in
+          *" $host "*) ;;
+          *) exit 0 ;;
+        esac
+
+        # SECURITY: baked-in paths are single-quoted, so no shell expansion.
+        config=${if configPath != null then lib.escapeShellArg configPath else "\"\${FNOX_CONFIG:-$HOME/.config/fnox/config.toml}\""}
+        FNOX_AGE_KEY_FILE=${if ageKeyFile != null then lib.escapeShellArg ageKeyFile else "\"\${FNOX_AGE_KEY_FILE:-$HOME/.config/sops/age/keys.txt}\""}
+        export FNOX_AGE_KEY_FILE
+        err="$(mktemp)"
+        trap 'rm -f "$err"' EXIT
+        # WHY: unset the variable so fnox cannot hand back a token that is
+        # only in the caller's environment; the credential must come from fnox.
+        if ! token="$(env -u "$secret" ${fnoxPackage}/bin/fnox -c "$config" --if-missing error get "$secret" 2>"$err")" \
+          || [ -z "$token" ]; then
+          echo "git-credential-fnox: no $secret from fnox; trying the next helper" >&2
+          cat "$err" >&2
+          exit 0
+        fi
+        printf 'username=%s\npassword=%s\n' ${lib.escapeShellArg username} "$token"
+      '';
+    };
 
   mkFnoxConfigToml =
     { recipients ? [ ]
