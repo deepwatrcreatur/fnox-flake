@@ -241,7 +241,11 @@ in
     };
 
     home.packages = [ cfg.package ] ++ wrappedPackages
-      ++ lib.optional cfg.gitCredentialHelper.enable gitHelper;
+      ++ lib.optional cfg.gitCredentialHelper.enable gitHelper
+      ++ lib.optional (cfg.seedSecretSources != { }) (fnoxLib.mkFnoxCheck {
+      fnoxPackage = cfg.package;
+      secretSources = cfg.seedSecretSources;
+    });
 
     # GOTCHA: Home Manager renamed programs.git.extraConfig to settings.
     programs.git = lib.mkIf cfg.gitCredentialHelper.enable (

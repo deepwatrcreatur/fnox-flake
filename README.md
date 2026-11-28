@@ -15,11 +15,14 @@
   - `mkWrappedCommand`
   - `mkGitCredentialHelper`
   - `mkFnoxConfigToml`
+  - `mkFnoxCheck`
   - `mkSeedSecretsScript`
   - `defaultSecretDefinitions`
   - `defaultWrappedCommandSpecs`
   - `wrappedCommandSpecs`
 - `homeManagerModules.default`: reusable Home Manager module
+- `fnox-check`: installed when `seedSecretSources` is configured; reports
+  source/store drift by secret name without showing values or hashes
 - `overlays.default`: exposes `fnox` in an overlay
 
 ## Package Selection Strategy
