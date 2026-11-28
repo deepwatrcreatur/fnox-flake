@@ -98,6 +98,35 @@ let
     exit 0
   '';
 
+  # fnox where 'get' returns the legacy provider-name placeholder.
+  fnoxGetAgePlaceholder = pkgs.writeShellScriptBin "fnox" ''
+    while [ "$#" -gt 0 ]; do
+      case "$1" in
+        get) echo "age"; exit 0 ;;
+        -c) shift 2 ;;
+        *) shift ;;
+      esac
+    done
+    exit 0
+  '';
+
+  # fnox where 'get' returns an older valid value and 'set' records stdin.
+  fnoxGetDifferent = pkgs.writeShellScriptBin "fnox" ''
+    while [ "$#" -gt 0 ]; do
+      case "$1" in
+        get) echo "old-secret-value"; exit 0 ;;
+        set)
+          shift
+          if [ "$#" -gt 1 ]; then echo "mock: value passed on argv" >&2; exit 1; fi
+          cat > "$FNOX_TEST_SET_LOG"
+          exit 0 ;;
+        -c) shift 2 ;;
+        *) shift ;;
+      esac
+    done
+    exit 0
+  '';
+
   # fnox where 'get' fails (not yet seeded) and 'set' also fails (e.g. bad config)
   fnoxSetFails = pkgs.writeShellScriptBin "fnox" ''
     while [ "$#" -gt 0 ]; do
@@ -311,6 +340,156 @@ in
       export FNOX_TEST_SET_LOG="$PWD/set.log"
       ${seedScript}
       test "$(cat "$FNOX_TEST_SET_LOG")" = "ghp_rotatedtoken"
+      touch "$out"
+    '';
+
+  # Source authority refreshes a previously stored, decryptable value.
+  seed-refreshes-changed-value =
+    let
+      sourceFile = pkgs.writeText "mock-rotated-secret-source" "new-secret-value";
+      seedScript = pkgs.writeShellScript "test-seed-rotation" (
+        fnoxLib.mkSeedSecretsScript {
+          fnoxPackage = fnoxGetDifferent;
+          secretSources = {
+            TEST_KEY = [ "${sourceFile}" ];
+          };
+        }
+      );
+    in
+    pkgs.runCommand "seed-refreshes-changed-value" sandboxEnv ''
+      export FNOX_TEST_SET_LOG="$PWD/set.log"
+      ${seedScript}
+      test "$(cat "$FNOX_TEST_SET_LOG")" = "new-secret-value"
+      touch "$out"
+    '';
+
+  # Home Manager dry runs must not write refreshed secrets to the live store.
+  seed-dry-run-does-not-write =
+    let
+      sourceFile = pkgs.writeText "mock-rotated-secret-source" "new-secret-value";
+      seedScript = pkgs.writeShellScript "test-seed-dry-run" (
+        fnoxLib.mkSeedSecretsScript {
+          fnoxPackage = fnoxGetDifferent;
+          secretSources = {
+            TEST_KEY = [ "${sourceFile}" ];
+          };
+        }
+      );
+    in
+    pkgs.runCommand "seed-dry-run-does-not-write" sandboxEnv ''
+      export FNOX_TEST_SET_LOG="$PWD/set.log"
+      DRY_RUN=1 ${seedScript}
+      test ! -e "$FNOX_TEST_SET_LOG"
+      touch "$out"
+    '';
+
+  # Whitespace-only sources are skipped; CRLF values normalize like fnox set.
+  seed-skips-whitespace-and-normalizes-crlf =
+    let
+      blankSource = pkgs.writeText "mock-blank-secret-source" "   \n";
+      crlfSource = pkgs.writeText "mock-crlf-secret-source" "new-secret-value\r\n";
+      seedScript = pkgs.writeShellScript "test-seed-whitespace" (
+        fnoxLib.mkSeedSecretsScript {
+          fnoxPackage = fnoxGetDifferent;
+          secretSources = {
+            TEST_KEY = [ "${blankSource}" "${crlfSource}" ];
+          };
+        }
+      );
+    in
+    pkgs.runCommand "seed-skips-whitespace-and-normalizes-crlf" sandboxEnv ''
+      export FNOX_TEST_SET_LOG="$PWD/set.log"
+      ${seedScript}
+      test "$(cat "$FNOX_TEST_SET_LOG")" = "new-secret-value"
+      touch "$out"
+    '';
+
+  seed-expands-home-path =
+    let
+      seedScript = pkgs.writeShellScript "test-seed-home-path" (
+        fnoxLib.mkSeedSecretsScript {
+          fnoxPackage = fnoxGetDifferent;
+          secretSources = { TEST_KEY = [ "$HOME/seed" ]; };
+        }
+      );
+    in
+    pkgs.runCommand "seed-expands-home-path" sandboxEnv ''
+      export HOME="$PWD/home"
+      export FNOX_TEST_SET_LOG="$PWD/set.log"
+      mkdir -p "$HOME"
+      printf '%s' "new-secret-value" > "$HOME/seed"
+      ${seedScript}
+      test "$(cat "$FNOX_TEST_SET_LOG")" = "new-secret-value"
+      touch "$out"
+    '';
+
+  # The checker expands the documented $HOME prefix and reports only names.
+  fnox-check-in-sync-home-path =
+    let
+      check = fnoxLib.mkFnoxCheck {
+        fnoxPackage = fnoxGetSameSetForbidden;
+        secretSources = { TEST_KEY = [ "$HOME/seed" ]; };
+      };
+    in
+    pkgs.runCommand "fnox-check-in-sync-home-path" sandboxEnv ''
+      export HOME="$PWD/home"
+      mkdir -p "$HOME"
+      printf '%s' "mock-secret-value" > "$HOME/seed"
+      ${check}/bin/fnox-check > result
+      grep -q '^fnox-check: TEST_KEY in sync$' result
+      touch "$out"
+    '';
+
+  fnox-check-reports-drift =
+    let
+      sourceFile = pkgs.writeText "mock-drift-source" "new-secret-value";
+      check = fnoxLib.mkFnoxCheck {
+        fnoxPackage = fnoxGetDifferent;
+        secretSources = { TEST_KEY = [ "${sourceFile}" ]; };
+      };
+    in
+    pkgs.runCommand "fnox-check-reports-drift" sandboxEnv ''
+      if ${check}/bin/fnox-check > result 2>&1; then
+        echo "fnox-check accepted a drifted value" >&2
+        exit 1
+      fi
+      grep -q '^fnox-check: drift detected for TEST_KEY$' result
+      ! grep -q 'old-secret-value\|new-secret-value' result
+      touch "$out"
+    '';
+
+  fnox-check-reports-age-placeholder =
+    let
+      sourceFile = pkgs.writeText "mock-age-placeholder-source" "age";
+      check = fnoxLib.mkFnoxCheck {
+        fnoxPackage = fnoxGetAgePlaceholder;
+        secretSources = { TEST_KEY = [ "${sourceFile}" ]; };
+      };
+    in
+    pkgs.runCommand "fnox-check-reports-age-placeholder" sandboxEnv ''
+      if ${check}/bin/fnox-check > result 2>&1; then
+        echo "fnox-check accepted the legacy placeholder" >&2
+        exit 1
+      fi
+      grep -q '^fnox-check: drift detected for TEST_KEY$' result
+      ! grep -q 'age' result
+      touch "$out"
+    '';
+
+  fnox-check-reports-unusable-source =
+    let
+      blankSource = pkgs.writeText "mock-unusable-source" "   \n";
+      check = fnoxLib.mkFnoxCheck {
+        fnoxPackage = fnoxGetDifferent;
+        secretSources = { TEST_KEY = [ "${blankSource}" ]; };
+      };
+    in
+    pkgs.runCommand "fnox-check-reports-unusable-source" sandboxEnv ''
+      if ${check}/bin/fnox-check > result 2>&1; then
+        echo "fnox-check accepted an unusable source" >&2
+        exit 1
+      fi
+      grep -q '^fnox-check: TEST_KEY has no usable seed source$' result
       touch "$out"
     '';
 

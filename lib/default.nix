@@ -23,6 +23,23 @@ let
     Z_AI_API_KEY.description = "Z.AI API key";
   };
 
+  seedScriptHelpers = ''
+    resolve_seed_path() {
+      case "$1" in
+        '$HOME') printf '%s\n' "$HOME" ;;
+        '$HOME/'*) printf '%s/%s\n' "$HOME" "''${1#\$HOME/}" ;;
+        *) printf '%s\n' "$1" ;;
+      esac
+    }
+
+    normalize_seed_value() {
+      value="$1"
+      value="''${value#"''${value%%[![:space:]]*}"}"
+      value="''${value%"''${value##*[![:space:]]}"}"
+      printf '%s' "$value"
+    }
+  '';
+
   # Lowercase, without an explicit default HTTPS port: how git matches hosts.
   normalizeGitHost = h: lib.removeSuffix ":443" (lib.toLower h);
 in
@@ -272,7 +289,8 @@ rec {
       renderSources =
         name: sources:
         ''
-          for source in ${lib.concatMapStringsSep " " (source: "\"${source}\"") sources}; do
+          for source_spec in ${lib.concatMapStringsSep " " lib.escapeShellArg sources}; do
+            source="$(resolve_seed_path "$source_spec")"
             if [ -f "$source" ]; then
               if seed_secret ${lib.escapeShellArg name} "$source"; then
                 break
@@ -291,8 +309,15 @@ rec {
       export FNOX_AGE_KEY_FILE="''${FNOX_AGE_KEY_FILE:-$HOME/.config/sops/age/keys.txt}"
       export FNOX_CONFIG="''${FNOX_CONFIG:-$HOME/.config/fnox/config.toml}"
 
+      ${seedScriptHelpers}
+
       if [ ! -x "$FNOX_BIN" ]; then
         echo "Warning: fnox binary not found at $FNOX_BIN; skipping fnox secret seeding" >&2
+        exit 0
+      fi
+
+      if [ -n "''${DRY_RUN:-}" ]; then
+        echo "Skipping fnox secret seeding during dry-run"
         exit 0
       fi
 
@@ -309,29 +334,32 @@ rec {
           return 2
         fi
 
-        value="$(cat "$file" 2>/dev/null || true)"
-        if [ -z "$value" ]; then
-          return 2
-        fi
+        raw_value="$(cat "$file" 2>/dev/null || true)"
 
         # Reject multiline content — real tokens are always single-line.
         # A file with multiple lines almost certainly contains an error message
         # (e.g. a failed SOPS decrypt) rather than a usable secret.
         # $(cat) strips trailing newlines, so a single-line file yields
         # exactly 1 line when passed through printf+wc.
-        if [ "$(printf '%s\n' "$value" | wc -l)" -gt 1 ]; then
+        if [ "$(printf '%s\n' "$raw_value" | wc -l)" -gt 1 ]; then
           echo "Warning: fnox seed source '$file' for '$name' contains multiple lines; skipping (may contain an error message rather than a secret)" >&2
           return 2
         fi
 
-        # WHY: an existing stored value wins (docs/security.md). Look at the
-        # store alone: unset the env var (fnox falls back to it) and fail on a
-        # missing secret. A missing or undecryptable value, or the legacy
-        # placeholder "age" left by configs that rendered `default = <provider>`,
-        # counts as not seeded.
+        # fnox trims whitespace from values read on stdin. Use the same
+        # normalized value for emptiness checks, drift detection and writes.
+        value="$(normalize_seed_value "$raw_value")"
+        if [ -z "$value" ]; then
+          return 2
+        fi
+
+        # WHY: seed sources are authoritative for secrets they provide. Compare
+        # with the store alone: unset the env var (fnox falls back to it) and
+        # fail on a missing secret. A missing or undecryptable value, a stale
+        # value, or the legacy "age" placeholder all need a reseed.
         stored=""
         if stored="$(env -u "$name" "$FNOX_BIN" -c "$FNOX_CONFIG" --if-missing error get "$name" 2>/dev/null)" \
-          && [ -n "$stored" ] && [ "$stored" != "age" ]; then
+          && [ -n "$stored" ] && [ "$stored" != "age" ] && [ "$stored" = "$value" ]; then
           return 0
         fi
 
@@ -345,6 +373,88 @@ rec {
       }
 
       ${lib.concatStringsSep "\n" (lib.mapAttrsToList renderSources secretSources)}
+    '';
+
+  /**
+    Create a command that checks whether fnox contains the current value from
+    each configured seed source. It prints only secret names and status, never
+    values or hashes, and exits non-zero when a source or stored value is
+    missing, unusable, or differs.
+
+    # Arguments
+
+    - `fnoxPackage`: the fnox package.
+    - `secretSources`: secret names mapped to ordered source file paths, using
+      the same precedence as `mkSeedSecretsScript`.
+  */
+  mkFnoxCheck =
+    { fnoxPackage
+    , secretSources
+    ,
+    }:
+    let
+      renderCheck = name: sources:
+        ''
+          check_secret ${lib.escapeShellArg name} ${lib.concatMapStringsSep " " lib.escapeShellArg sources}
+        '';
+    in
+    pkgs.writeShellScriptBin "fnox-check" ''
+      set -u
+      FNOX_BIN=${lib.escapeShellArg "${fnoxPackage}/bin/fnox"}
+      FNOX_CONFIG="''${FNOX_CONFIG:-$HOME/.config/fnox/config.toml}"
+      FNOX_AGE_KEY_FILE="''${FNOX_AGE_KEY_FILE:-$HOME/.config/sops/age/keys.txt}"
+      export FNOX_AGE_KEY_FILE
+
+      ${seedScriptHelpers}
+
+      if [ ! -x "$FNOX_BIN" ]; then
+        echo "fnox-check: fnox binary is unavailable" >&2
+        exit 2
+      fi
+
+      drift=0
+      check_secret() {
+        name="$1"
+        shift
+        source_file=""
+        source_value=""
+        for source_spec in "$@"; do
+          source="$(resolve_seed_path "$source_spec")"
+          [ -f "$source" ] || continue
+          if [ ! -r "$source" ]; then
+            echo "fnox-check: $name seed source is not readable" >&2
+            continue
+          fi
+          raw_candidate="$(cat "$source" 2>/dev/null || true)"
+          if [ "$(printf '%s\n' "$raw_candidate" | wc -l)" -gt 1 ]; then
+            echo "fnox-check: $name seed source is not a single line" >&2
+            continue
+          fi
+          candidate="$(normalize_seed_value "$raw_candidate")"
+          [ -n "$candidate" ] || continue
+          source_file="$source"
+          source_value="$candidate"
+          break
+        done
+
+        if [ -z "$source_file" ]; then
+          echo "fnox-check: $name has no usable seed source" >&2
+          drift=1
+          return
+        fi
+
+        stored=""
+        if stored="$(env -u "$name" "$FNOX_BIN" -c "$FNOX_CONFIG" --if-missing error get "$name" 2>/dev/null)" \
+          && [ -n "$stored" ] && [ "$stored" != "age" ] && [ "$stored" = "$source_value" ]; then
+          echo "fnox-check: $name in sync"
+        else
+          echo "fnox-check: drift detected for $name" >&2
+          drift=1
+        fi
+      }
+
+      ${lib.concatStringsSep "\n" (lib.mapAttrsToList renderCheck secretSources)}
+      exit "$drift"
     '';
 
   defaultWrappedCommandSpecs =

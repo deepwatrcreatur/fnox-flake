@@ -88,37 +88,35 @@ environment using `export VAR="$value"`. The values are:
 
 ### Process argument exposure during seeding
 
-The seed script calls `fnox set "$name" "$value"` with the secret value as a
-process argument. Process arguments are briefly visible in `/proc/<pid>/cmdline`
-and in tools like `ps`. This exposure is short-lived (the duration of the
-`fnox set` call) and occurs only during Home Manager activation, not on every
-login. If your threat model requires zero process-argument exposure, seed
-secrets out-of-band using `fnox set` directly rather than relying on
-`seedSecretSources`.
+The seed script passes secret values to `fnox set` on standard input, not in
+process arguments. The values therefore do not appear in `/proc/<pid>/cmdline`
+or tools like `ps`.
 
 ## Seed Operation Precedence
 
 When `seedSecretSources` is configured, the seed script runs once per
 `home-manager switch`. Precedence rules:
 
-1. **Existing fnox value wins.** If the store holds a usable value for the
-   secret, the seed script moves on without overwriting it, even if the source
-   file now holds a different value. Seeding is intentionally idempotent; to
-   rotate a seeded secret, run `fnox set` (or remove it so the next activation
-   reseeds it). The check looks at the store alone: it runs `fnox
-   --if-missing error get` with the secret's environment variable unset,
-   because fnox falls back to that variable. These count as *not* seeded and
-   are filled from the source:
+1. **Seed sources are authoritative for secrets they provide.** On each
+   activation the seed script compares the first usable source with the stored
+   fnox value and refreshes the store when they differ. A secret without a
+   configured source remains user-managed in fnox. The comparison looks at
+   the store alone: it runs `fnox --if-missing error get` with the secret's
+   environment variable unset, because fnox falls back to it. These count as
+   not in sync and are filled from the source:
    - a missing value;
    - a value that cannot be decrypted (for example after the recipients
      changed);
+   - a value that differs from the selected seed source;
    - the literal `age`, a placeholder older versions of this flake produced by
      rendering `default = "<provider>"` (fnox reads `default` as the fallback
      value).
 
-2. **First readable, non-empty source file wins.** Sources are tried in the
-   order listed. As soon as one source is read and `fnox set` succeeds, the
-   remaining sources for that secret are skipped.
+2. **First usable source file wins.** Sources are tried in the order listed.
+   The `fnox-check` command uses the same precedence and reports which seeded
+   secret is out of sync without displaying its value or hash. A leading
+   literal `$HOME/` is expanded by both commands; arbitrary shell expressions
+   in source paths are not evaluated.
 
 3. **Errors from `fnox set` are fatal.** If `fnox set` returns non-zero (e.g.
    age encryption fails because no recipients are configured), the activation
@@ -133,13 +131,21 @@ When `seedSecretSources` is configured, the seed script runs once per
 5. **Values go to `fnox set` on stdin**, never as an argument, so they do not
    appear in `ps` output or process accounting.
 
-6. **Multiline sources are skipped with a warning.** If a source file contains
+6. **Dry runs do not write secrets.** When Home Manager sets `DRY_RUN`, the
+   seed script exits before reading or writing fnox values.
+
+7. **Multiline sources are skipped with a warning.** If a source file contains
    more than one line, the seed script emits a warning and tries the next
    source. Real tokens and API keys are always single-line; a file with
    multiple lines almost certainly contains an error message (e.g. a SOPS or
    decrypt failure) rather than a usable secret. Seeding a junk value into
    fnox would silently break every wrapped command that depends on it — the
    multiline check catches this before `fnox set` is ever called.
+
+8. **Whitespace is normalized like `fnox set`.** Leading and trailing
+   whitespace is removed before checking for an empty source, comparing
+   values, and writing. Whitespace-only sources are skipped, and CRLF token
+   files do not cause repeated rewrites or false drift reports.
 
 ### Handling corrupted token files
 
