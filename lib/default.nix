@@ -445,7 +445,7 @@ rec {
 
         stored=""
         if stored="$(env -u "$name" "$FNOX_BIN" -c "$FNOX_CONFIG" --if-missing error get "$name" 2>/dev/null)" \
-          && [ "$stored" = "$source_value" ]; then
+          && [ -n "$stored" ] && [ "$stored" != "age" ] && [ "$stored" = "$source_value" ]; then
           echo "fnox-check: $name in sync"
         else
           echo "fnox-check: drift detected for $name" >&2

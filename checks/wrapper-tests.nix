@@ -98,6 +98,18 @@ let
     exit 0
   '';
 
+  # fnox where 'get' returns the legacy provider-name placeholder.
+  fnoxGetAgePlaceholder = pkgs.writeShellScriptBin "fnox" ''
+    while [ "$#" -gt 0 ]; do
+      case "$1" in
+        get) echo "age"; exit 0 ;;
+        -c) shift 2 ;;
+        *) shift ;;
+      esac
+    done
+    exit 0
+  '';
+
   # fnox where 'get' returns an older valid value and 'set' records stdin.
   fnoxGetDifferent = pkgs.writeShellScriptBin "fnox" ''
     while [ "$#" -gt 0 ]; do
@@ -443,6 +455,24 @@ in
       fi
       grep -q '^fnox-check: drift detected for TEST_KEY$' result
       ! grep -q 'old-secret-value\|new-secret-value' result
+      touch "$out"
+    '';
+
+  fnox-check-reports-age-placeholder =
+    let
+      sourceFile = pkgs.writeText "mock-age-placeholder-source" "age";
+      check = fnoxLib.mkFnoxCheck {
+        fnoxPackage = fnoxGetAgePlaceholder;
+        secretSources = { TEST_KEY = [ "${sourceFile}" ]; };
+      };
+    in
+    pkgs.runCommand "fnox-check-reports-age-placeholder" sandboxEnv ''
+      if ${check}/bin/fnox-check > result 2>&1; then
+        echo "fnox-check accepted the legacy placeholder" >&2
+        exit 1
+      fi
+      grep -q '^fnox-check: drift detected for TEST_KEY$' result
+      ! grep -q 'age' result
       touch "$out"
     '';
 
